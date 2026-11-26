@@ -1,0 +1,108 @@
+{
+  "variables": [
+    {
+      "name": "expression",
+      "default": "233 * 333"
+    }
+  ],
+  "outputs": [
+    "result"
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "core.start",
+      "params": {},
+      "position": {
+        "x": 40,
+        "y": 160
+      }
+    },
+    {
+      "id": "open",
+      "type": "core.python",
+      "label": "Открыть Калькулятор",
+      "params": {
+        "code": "import subprocess as _sp\n\ndef osa(script):\n    _r = _sp.run([\"osascript\", \"-e\", script], capture_output=True, text=True)\n    if _r.returncode != 0:\n        raise RuntimeError(\"AppleScript: \" + _r.stderr.strip()\n                           + \" (выдайте роботу доступ: Настройки → Конфиденциальность → Универсальный доступ)\")\n    return _r.stdout.strip()\n\nimport time as _t\nosa('tell application \"Calculator\" to activate')\n_t.sleep(1)\n# Esc дважды — сбросить прежнее значение (AC)\nosa('tell application \"System Events\" to tell process \"Calculator\" to key code 53')\nosa('tell application \"System Events\" to tell process \"Calculator\" to key code 53')\nlog(\"Калькулятор открыт\")\n"
+      },
+      "position": {
+        "x": 300,
+        "y": 160
+      }
+    },
+    {
+      "id": "type",
+      "type": "core.python",
+      "label": "Ввести выражение",
+      "params": {
+        "code": "import subprocess as _sp\n\ndef osa(script):\n    _r = _sp.run([\"osascript\", \"-e\", script], capture_output=True, text=True)\n    if _r.returncode != 0:\n        raise RuntimeError(\"AppleScript: \" + _r.stderr.strip()\n                           + \" (выдайте роботу доступ: Настройки → Конфиденциальность → Универсальный доступ)\")\n    return _r.stdout.strip()\n\n_expr = str(expression).replace(\" \", \"\").replace('\"', \"\")\nosa('tell application \"System Events\" to tell process \"Calculator\" to keystroke \"%s=\"' % _expr)\nlog(\"Введено: \" + _expr + \"=\")\n"
+      },
+      "position": {
+        "x": 560,
+        "y": 160
+      }
+    },
+    {
+      "id": "read",
+      "type": "core.python",
+      "label": "Считать результат",
+      "params": {
+        "code": "import subprocess as _sp\n\ndef osa(script):\n    _r = _sp.run([\"osascript\", \"-e\", script], capture_output=True, text=True)\n    if _r.returncode != 0:\n        raise RuntimeError(\"AppleScript: \" + _r.stderr.strip()\n                           + \" (выдайте роботу доступ: Настройки → Конфиденциальность → Универсальный доступ)\")\n    return _r.stdout.strip()\n\nimport time as _t\n_t.sleep(0.5)\n# Cmd+C копирует значение с дисплея калькулятора\nosa('tell application \"System Events\" to tell process \"Calculator\" to keystroke \"c\" using command down')\n_t.sleep(0.3)\nresult = _sp.run([\"pbpaste\"], capture_output=True, text=True).stdout.strip()\nresult = \"\".join(ch for ch in result if not ch.isspace())\nlog(\"Результат: \" + result)\n"
+      },
+      "position": {
+        "x": 820,
+        "y": 160
+      }
+    },
+    {
+      "id": "pages",
+      "type": "core.python",
+      "label": "Вставить в Pages",
+      "params": {
+        "code": "import subprocess as _sp\n\ndef osa(script):\n    _r = _sp.run([\"osascript\", \"-e\", script], capture_output=True, text=True)\n    if _r.returncode != 0:\n        raise RuntimeError(\"AppleScript: \" + _r.stderr.strip()\n                           + \" (выдайте роботу доступ: Настройки → Конфиденциальность → Универсальный доступ)\")\n    return _r.stdout.strip()\n\n_text = \"%s = %s\" % (expression, result)\n_safe = _text.replace(\"\\\\\", \"\\\\\\\\\").replace('\"', '\\\\\"')\nosa('tell application \"Pages\" to activate')\nosa('tell application \"Pages\" to set _doc to make new document')\nosa('tell application \"Pages\" to set body text of front document to \"%s\"' % _safe)\n_check = osa('tell application \"Pages\" to get body text of front document')\nif _check.strip() != _text:\n    raise RuntimeError(\"Текст не попал в документ Pages: %r\" % _check)\nlog(\"Вставлено в Pages: \" + _text)\n"
+      },
+      "position": {
+        "x": 1080,
+        "y": 160
+      }
+    },
+    {
+      "id": "log",
+      "type": "core.log",
+      "params": {
+        "message": "{{ expression }} = {{ result }}"
+      },
+      "position": {
+        "x": 1340,
+        "y": 160
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "open"
+    },
+    {
+      "source": "open",
+      "sourceHandle": "out",
+      "target": "type"
+    },
+    {
+      "source": "type",
+      "sourceHandle": "out",
+      "target": "read"
+    },
+    {
+      "source": "read",
+      "sourceHandle": "out",
+      "target": "pages"
+    },
+    {
+      "source": "pages",
+      "sourceHandle": "out",
+      "target": "log"
+    }
+  ]
+}
