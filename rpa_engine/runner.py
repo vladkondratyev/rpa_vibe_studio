@@ -27,7 +27,7 @@ from .context import Cancelled, Context
 from .registry import get_block
 
 MAX_STEPS = 1_000_000
-NO_RENDER_KINDS = {"code", "expression", "variable"}
+NO_RENDER_KINDS = {"code", "expression", "variable", "secret"}
 
 
 class DefinitionError(Exception):
@@ -126,7 +126,7 @@ def run_process(
             except Cancelled:
                 raise
             except Exception as exc:
-                message = f"{bdef.title}: {exc}"
+                message = ctx.mask(f"{bdef.title}: {exc}")
                 ctx.vars["last_error"] = message
                 target = edges.get((current, "error")) if bdef.error_output else None
                 ctx.log(message, "error")
@@ -178,6 +178,8 @@ def _resolve_params(ctx: Context, bdef: Any, raw: Dict[str, Any]) -> Dict[str, A
             value = float(value) if "." in value else int(value)
         if p.kind == "boolean" and isinstance(value, str):
             value = value.strip().lower() in ("1", "true", "да", "yes")
+        if p.kind == "secret" and not _is_empty(value):
+            value = ctx.secret(str(value).strip())
         if p.required and _is_empty(value):
             raise ValueError(f"не заполнен параметр «{p.label}»")
         result[p.name] = value

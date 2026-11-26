@@ -15,7 +15,7 @@ import httpx
 
 from rpa_engine import Context, run_process
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 log = logging.getLogger("rpa.robot")
 
 
@@ -80,7 +80,8 @@ class Agent:
         job_id = job["id"]
         log.info("Запуск #%s: %s", job_id, job["process_name"])
         sender = _LogSender(self.http, job_id)
-        ctx = Context(log=sender.log, artifact=sender.artifact)
+        ctx = Context(log=sender.log, artifact=sender.artifact, secrets=job.get("secrets") or {},
+                      config=job.get("config") or {}, orchestrator=OrchestratorClient(self.http, self.name, job_id))
         self.current_job, self.current_ctx = job_id, ctx
         sender.on_cancel = ctx.cancel_event.set
         sender.start()
@@ -104,6 +105,51 @@ class Agent:
                 time.sleep(min(30, 2 ** attempt))
         self.current_job, self.current_ctx = None, None
         log.info("Запуск #%s завершён: %s", job_id, result.status)
+
+
+class OrchestratorClient:
+    """То, что блоки процесса могут попросить у оркестратора: очереди и запуск процессов."""
+
+    def __init__(self, http: httpx.Client, robot: str, job_id: int) -> None:
+        self.http, self.robot, self.job_id = http, robot, job_id
+
+    def _ok(self, r: Any) -> Any:
+        if r.status_code >= 400:
+            try:
+                detail = r.json().get("detail")
+            except ValueError:
+                detail = r.text
+            raise RuntimeError(f"Оркестратор: {detail}")
+        return r
+
+    def queue_add(self, queue: str, items: List[Dict[str, Any]]) -> int:
+        return self._ok(self.http.post(f"/api/agent/queues/{queue}/items", json={"items": items})).json()["added"]
+
+    def queue_next(self, queue: str) -> Optional[Dict[str, Any]]:
+        r = self._ok(self.http.post(f"/api/agent/queues/{queue}/next",
+                                    json={"robot": self.robot, "job_id": self.job_id}))
+        return None if r.status_code == 204 else r.json()
+
+    def queue_finish(self, item_id: int, status: str, result: Any = None, error: Optional[str] = None,
+                     business: bool = False) -> None:
+        self._ok(self.http.post(f"/api/agent/queue-items/{item_id}/finish",
+                                json={"status": status, "result": result, "error": error, "business": business}))
+
+    def run_process(self, name: str, inputs: Dict[str, Any], wait: bool = False,
+                    check_cancel: Any = None, timeout: float = 6 * 3600) -> Dict[str, Any]:
+        job = self._ok(self.http.post("/api/agent/run", json={"name": name, "inputs": inputs,
+                                                              "parent_job": self.job_id})).json()
+        if not wait:
+            return job
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if check_cancel:
+                check_cancel()
+            job = self._ok(self.http.get(f"/api/agent/jobs/{job['id']}")).json()
+            if job["status"] in ("success", "failed", "cancelled"):
+                return job
+            time.sleep(3)
+        raise RuntimeError(f"Процесс «{name}» не завершился за отведённое время")
 
 
 class _LogSender(threading.Thread):

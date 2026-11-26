@@ -1,0 +1,19 @@
+# Дополнительные модули — ставьте то, что нужно вашим процессам.
+# Vision / Citrix / RDP: поиск картинок, OCR экрана, мышь и клавиатура
+opencv-python-headless>=4.8
+numpy>=1.24
+pillow>=10
+pyautogui>=0.9.54
+pytesseract>=0.3.10
+# Документы: PDF, сканы PDF, Word
+pypdf>=4
+pypdfium2>=4
+python-docx>=1.1
+# ИИ: Claude (YandexGPT, GigaChat и OpenAI-совместимые работают через httpx)
+anthropic>=0.40
+# Windows: селекторы окон (UI Automation)
+pywinauto>=0.6.8; sys_platform == "win32"
+# LDAP / Active Directory
+ldap3>=2.9
+# PostgreSQL для оркестратора
+psycopg[binary]>=3.1

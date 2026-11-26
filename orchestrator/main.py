@@ -25,8 +25,9 @@ from rpa_engine import catalog, validate
 
 from . import services
 from .models import (
-    EMPTY_PROCESS, Artifact, Job, JobLog, Process, Robot, Schedule, get_session, init_db, utcnow,
+    EMPTY_PROCESS, Artifact, Job, JobLog, Process, ProcessVersion, Robot, Schedule, get_session, init_db, utcnow,
 )
+from .security import ADMIN, DEVELOP, OPERATE, ROBOT, VIEW, Principal, audit
 
 log = logging.getLogger("rpa.orchestrator")
 TOKEN = os.environ.get("RPA_TOKEN", "")
@@ -37,25 +38,16 @@ FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 async def lifespan(app: FastAPI):
     init_db()
     if not TOKEN:
-        log.warning("RPA_TOKEN не задан: API открыт без авторизации (допустимо только для разработки)")
+        log.warning("RPA_TOKEN не задан: пока нет пользователей, API открыт (допустимо только для разработки)")
     scheduler = services.Scheduler()
     scheduler.start()
     yield
     scheduler.stop()
 
 
-app = FastAPI(title="RPA Orchestrator", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="RPA Vibe Studio", version=services.VERSION, lifespan=lifespan)
 
 
-def require_token(authorization: str = Header(default="")) -> None:
-    if not TOKEN:
-        return
-    supplied = authorization[7:] if authorization.startswith("Bearer ") else ""
-    if not hmac.compare_digest(supplied.encode(), TOKEN.encode()):
-        raise HTTPException(401, "Неверный токен доступа")
-
-
-auth = [Depends(require_token)]
 
 
 def iso(value: Optional[dt.datetime]) -> Optional[str]:
@@ -67,6 +59,7 @@ class ProcessIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = ""
     definition: Optional[Dict[str, Any]] = None
+    minutes_saved: Optional[int] = None
 
 
 class RunIn(BaseModel):
@@ -125,6 +118,7 @@ class FinishIn(BaseModel):
 # ---------------------------------------------------------------- сериализация
 def process_out(p: Process, full: bool = True) -> Dict[str, Any]:
     out = {"id": p.id, "name": p.name, "description": p.description, "version": p.version,
+           "minutes_saved": p.minutes_saved or 0,
            "created_at": iso(p.created_at), "updated_at": iso(p.updated_at)}
     if full:
         out["definition"] = p.definition
@@ -137,7 +131,8 @@ def job_out(j: Job) -> Dict[str, Any]:
         "process_version": j.process_version, "status": j.status, "error": j.error,
         "failed_node": j.failed_node, "inputs": j.inputs, "outputs": j.outputs,
         "required_tags": j.required_tags, "robot_name": j.robot_name, "executed_by": j.executed_by,
-        "source": j.source, "cancel_requested": j.cancel_requested,
+        "source": j.source, "cancel_requested": j.cancel_requested, "queue_id": j.queue_id,
+        "started_by": j.started_by,
         "created_at": iso(j.created_at), "started_at": iso(j.started_at), "finished_at": iso(j.finished_at),
     }
 
@@ -164,16 +159,18 @@ def get_or_404(db: Session, model: Any, id: int) -> Any:
 
 # ---------------------------------------------------------------- общее
 @app.get("/api/health")
-def health() -> Dict[str, Any]:
-    return {"ok": True, "auth": bool(TOKEN)}
+def health(db: Session = Depends(get_session)) -> Dict[str, Any]:
+    from .security import auth_enabled
+
+    return {"ok": True, "auth": auth_enabled(db), "version": services.VERSION}
 
 
-@app.get("/api/blocks", dependencies=auth)
+@app.get("/api/blocks", dependencies=[Depends(VIEW)])
 def blocks() -> List[Dict[str, Any]]:
     return catalog()
 
 
-@app.get("/api/stats", dependencies=auth)
+@app.get("/api/stats", dependencies=[Depends(VIEW)])
 def stats(db: Session = Depends(get_session)) -> Dict[str, Any]:
     rows = db.execute(select(Job.status, func.count()).group_by(Job.status)).all()
     robots = db.execute(select(Robot)).scalars().all()
@@ -184,68 +181,82 @@ def stats(db: Session = Depends(get_session)) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------- процессы
-@app.get("/api/processes", dependencies=auth)
+@app.get("/api/processes", dependencies=[Depends(VIEW)])
 def list_processes(db: Session = Depends(get_session)) -> List[Dict[str, Any]]:
     return [process_out(p, full=False) for p in db.execute(select(Process).order_by(Process.name)).scalars()]
 
 
-@app.post("/api/processes", dependencies=auth, status_code=201)
-def create_process(body: ProcessIn, db: Session = Depends(get_session)) -> Dict[str, Any]:
+@app.post("/api/processes", dependencies=[Depends(DEVELOP)], status_code=201)
+def create_process(body: ProcessIn, db: Session = Depends(get_session),
+                   who: Principal = Depends(DEVELOP)) -> Dict[str, Any]:
     if db.execute(select(Process).where(Process.name == body.name)).scalar_one_or_none():
         raise HTTPException(409, "Процесс с таким именем уже есть")
-    p = Process(name=body.name, description=body.description, definition=body.definition or EMPTY_PROCESS)
+    p = Process(name=body.name, description=body.description, definition=body.definition or EMPTY_PROCESS,
+                minutes_saved=body.minutes_saved or 0)
     db.add(p)
     db.commit()
+    db.add(ProcessVersion(process_id=p.id, version=1, definition=p.definition, author=who.username))
+    audit(db, who, "process.create", "process", p.id, {"name": p.name})
     return process_out(p)
 
 
-@app.get("/api/processes/{pid}", dependencies=auth)
+@app.get("/api/processes/{pid}", dependencies=[Depends(VIEW)])
 def get_process(pid: int, db: Session = Depends(get_session)) -> Dict[str, Any]:
     return process_out(get_or_404(db, Process, pid))
 
 
-@app.put("/api/processes/{pid}", dependencies=auth)
-def update_process(pid: int, body: ProcessIn, db: Session = Depends(get_session)) -> Dict[str, Any]:
+@app.put("/api/processes/{pid}", dependencies=[Depends(DEVELOP)])
+def update_process(pid: int, body: ProcessIn, db: Session = Depends(get_session),
+                   who: Principal = Depends(DEVELOP)) -> Dict[str, Any]:
     p = get_or_404(db, Process, pid)
     clash = db.execute(select(Process).where(Process.name == body.name, Process.id != pid)).scalar_one_or_none()
     if clash:
         raise HTTPException(409, "Процесс с таким именем уже есть")
     p.name, p.description = body.name, body.description
-    if body.definition is not None and body.definition != p.definition:
+    if body.minutes_saved is not None:
+        p.minutes_saved = body.minutes_saved
+    changed = body.definition is not None and body.definition != p.definition
+    if changed:
         p.definition = body.definition
         p.version += 1
+        db.add(ProcessVersion(process_id=p.id, version=p.version, definition=p.definition, author=who.username))
     p.updated_at = utcnow()
     db.commit()
+    if changed:
+        audit(db, who, "process.update", "process", p.id, {"version": p.version})
     return process_out(p)
 
 
-@app.delete("/api/processes/{pid}", dependencies=auth, status_code=204)
-def delete_process(pid: int, db: Session = Depends(get_session)) -> Response:
+@app.delete("/api/processes/{pid}", dependencies=[Depends(DEVELOP)], status_code=204)
+def delete_process(pid: int, db: Session = Depends(get_session), who: Principal = Depends(DEVELOP)) -> Response:
     p = get_or_404(db, Process, pid)
     db.execute(delete(Schedule).where(Schedule.process_id == pid))
     db.delete(p)
     db.commit()
+    audit(db, who, "process.delete", "process", pid, {"name": p.name})
     return Response(status_code=204)
 
 
-@app.post("/api/processes/{pid}/validate", dependencies=auth)
+@app.post("/api/processes/{pid}/validate", dependencies=[Depends(VIEW)])
 def validate_process(pid: int, db: Session = Depends(get_session)) -> Dict[str, Any]:
     errors = validate(get_or_404(db, Process, pid).definition)
     return {"ok": not errors, "errors": errors}
 
 
-@app.post("/api/processes/{pid}/run", dependencies=auth, status_code=201)
-def run_process(pid: int, body: RunIn, db: Session = Depends(get_session)) -> Dict[str, Any]:
+@app.post("/api/processes/{pid}/run", dependencies=[Depends(OPERATE)], status_code=201)
+def run_process(pid: int, body: RunIn, db: Session = Depends(get_session),
+                who: Principal = Depends(OPERATE)) -> Dict[str, Any]:
     p = get_or_404(db, Process, pid)
     errors = validate(p.definition)
     if errors:
         raise HTTPException(422, {"message": "Процесс содержит ошибки", "errors": errors})
-    job = services.create_job(db, p, body.inputs, body.tags, body.robot, "manual")
+    job = services.create_job(db, p, body.inputs, body.tags, body.robot, "manual", started_by=who.username)
+    audit(db, who, "process.run", "job", job.id, {"process": p.name})
     return job_out(job)
 
 
 # ---------------------------------------------------------------- запуски
-@app.get("/api/jobs", dependencies=auth)
+@app.get("/api/jobs", dependencies=[Depends(VIEW)])
 def list_jobs(
     process_id: Optional[int] = None,
     status: Optional[str] = None,
@@ -260,12 +271,12 @@ def list_jobs(
     return [job_out(j) for j in db.execute(q).scalars()]
 
 
-@app.get("/api/jobs/{jid}", dependencies=auth)
+@app.get("/api/jobs/{jid}", dependencies=[Depends(VIEW)])
 def get_job(jid: int, db: Session = Depends(get_session)) -> Dict[str, Any]:
     return job_out(get_or_404(db, Job, jid))
 
 
-@app.get("/api/jobs/{jid}/logs", dependencies=auth)
+@app.get("/api/jobs/{jid}/logs", dependencies=[Depends(VIEW)])
 def job_logs(jid: int, after: int = 0, db: Session = Depends(get_session)) -> List[Dict[str, Any]]:
     rows = db.execute(
         select(JobLog).where(JobLog.job_id == jid, JobLog.id > after).order_by(JobLog.id).limit(2000)
@@ -274,7 +285,7 @@ def job_logs(jid: int, after: int = 0, db: Session = Depends(get_session)) -> Li
             for r in rows]
 
 
-@app.get("/api/jobs/{jid}/artifacts", dependencies=auth)
+@app.get("/api/jobs/{jid}/artifacts", dependencies=[Depends(VIEW)])
 def job_artifacts(jid: int, db: Session = Depends(get_session)) -> List[Dict[str, Any]]:
     rows = db.execute(
         select(Artifact.id, Artifact.name, Artifact.content_type, Artifact.node_id, Artifact.created_at)
@@ -284,7 +295,7 @@ def job_artifacts(jid: int, db: Session = Depends(get_session)) -> List[Dict[str
              "created_at": iso(r.created_at)} for r in rows]
 
 
-@app.get("/api/artifacts/{aid}", dependencies=auth)
+@app.get("/api/artifacts/{aid}", dependencies=[Depends(VIEW)])
 def get_artifact(aid: int, db: Session = Depends(get_session)) -> Response:
     a = get_or_404(db, Artifact, aid)
     from urllib.parse import quote
@@ -295,9 +306,10 @@ def get_artifact(aid: int, db: Session = Depends(get_session)) -> Response:
         "Content-Disposition": f"inline; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(a.name)}"})
 
 
-@app.post("/api/jobs/{jid}/cancel", dependencies=auth)
-def cancel_job(jid: int, db: Session = Depends(get_session)) -> Dict[str, Any]:
+@app.post("/api/jobs/{jid}/cancel", dependencies=[Depends(OPERATE)])
+def cancel_job(jid: int, db: Session = Depends(get_session), who: Principal = Depends(OPERATE)) -> Dict[str, Any]:
     job = get_or_404(db, Job, jid)
+    audit(db, who, "job.cancel", "job", jid, commit=False)
     if job.status == "queued":
         job.status, job.finished_at, job.error = "cancelled", utcnow(), "Отменён до запуска"
     elif job.status == "running":
@@ -307,12 +319,12 @@ def cancel_job(jid: int, db: Session = Depends(get_session)) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------- роботы (для интерфейса)
-@app.get("/api/robots", dependencies=auth)
+@app.get("/api/robots", dependencies=[Depends(VIEW)])
 def list_robots(db: Session = Depends(get_session)) -> List[Dict[str, Any]]:
     return [robot_out(r) for r in db.execute(select(Robot).order_by(Robot.name)).scalars()]
 
 
-@app.delete("/api/robots/{rid}", dependencies=auth, status_code=204)
+@app.delete("/api/robots/{rid}", dependencies=[Depends(ADMIN)], status_code=204)
 def delete_robot(rid: int, db: Session = Depends(get_session)) -> Response:
     db.delete(get_or_404(db, Robot, rid))
     db.commit()
@@ -329,12 +341,12 @@ def _apply_schedule(s: Schedule, body: ScheduleIn, db: Session) -> None:
     s.next_run_at = services.next_run(body.cron) if body.enabled else None
 
 
-@app.get("/api/schedules", dependencies=auth)
+@app.get("/api/schedules", dependencies=[Depends(VIEW)])
 def list_schedules(db: Session = Depends(get_session)) -> List[Dict[str, Any]]:
     return [schedule_out(s, db) for s in db.execute(select(Schedule).order_by(Schedule.id)).scalars()]
 
 
-@app.post("/api/schedules", dependencies=auth, status_code=201)
+@app.post("/api/schedules", dependencies=[Depends(DEVELOP)], status_code=201)
 def create_schedule(body: ScheduleIn, db: Session = Depends(get_session)) -> Dict[str, Any]:
     s = Schedule()
     _apply_schedule(s, body, db)
@@ -343,7 +355,7 @@ def create_schedule(body: ScheduleIn, db: Session = Depends(get_session)) -> Dic
     return schedule_out(s, db)
 
 
-@app.put("/api/schedules/{sid}", dependencies=auth)
+@app.put("/api/schedules/{sid}", dependencies=[Depends(DEVELOP)])
 def update_schedule(sid: int, body: ScheduleIn, db: Session = Depends(get_session)) -> Dict[str, Any]:
     s = get_or_404(db, Schedule, sid)
     _apply_schedule(s, body, db)
@@ -351,7 +363,7 @@ def update_schedule(sid: int, body: ScheduleIn, db: Session = Depends(get_sessio
     return schedule_out(s, db)
 
 
-@app.delete("/api/schedules/{sid}", dependencies=auth, status_code=204)
+@app.delete("/api/schedules/{sid}", dependencies=[Depends(DEVELOP)], status_code=204)
 def delete_schedule(sid: int, db: Session = Depends(get_session)) -> Response:
     db.delete(get_or_404(db, Schedule, sid))
     db.commit()
@@ -359,7 +371,7 @@ def delete_schedule(sid: int, db: Session = Depends(get_session)) -> Response:
 
 
 # ---------------------------------------------------------------- API для роботов
-@app.post("/api/agent/heartbeat", dependencies=auth)
+@app.post("/api/agent/heartbeat", dependencies=[Depends(ROBOT)])
 def heartbeat(body: HeartbeatIn, db: Session = Depends(get_session)) -> Dict[str, Any]:
     robot = db.execute(select(Robot).where(Robot.name == body.name)).scalar_one_or_none()
     if robot is None:
@@ -376,7 +388,7 @@ def heartbeat(body: HeartbeatIn, db: Session = Depends(get_session)) -> Dict[str
     return {"ok": True, "cancel": cancel}
 
 
-@app.post("/api/agent/claim", dependencies=auth)
+@app.post("/api/agent/claim", dependencies=[Depends(ROBOT)])
 def claim(body: ClaimIn, db: Session = Depends(get_session)) -> Response:
     robot = db.execute(select(Robot).where(Robot.name == body.name)).scalar_one_or_none()
     if robot is None:
@@ -386,8 +398,7 @@ def claim(body: ClaimIn, db: Session = Depends(get_session)) -> Response:
     job = services.claim_job(db, robot)
     if job is None:
         return Response(status_code=204)
-    return _json({"id": job.id, "process_name": job.process_name, "definition": job.definition,
-                  "inputs": job.inputs})
+    return _json(services.job_payload(db, job))
 
 
 def _agent_job(db: Session, jid: int) -> Job:
@@ -395,7 +406,7 @@ def _agent_job(db: Session, jid: int) -> Job:
     return job
 
 
-@app.post("/api/agent/jobs/{jid}/logs", dependencies=auth)
+@app.post("/api/agent/jobs/{jid}/logs", dependencies=[Depends(ROBOT)])
 def agent_logs(jid: int, body: LogsIn, db: Session = Depends(get_session)) -> Dict[str, Any]:
     job = _agent_job(db, jid)
     for e in body.entries:
@@ -405,7 +416,7 @@ def agent_logs(jid: int, body: LogsIn, db: Session = Depends(get_session)) -> Di
     return {"cancel": bool(job.cancel_requested)}
 
 
-@app.post("/api/agent/jobs/{jid}/artifacts", dependencies=auth, status_code=201)
+@app.post("/api/agent/jobs/{jid}/artifacts", dependencies=[Depends(ROBOT)], status_code=201)
 def agent_artifact(jid: int, body: ArtifactIn, db: Session = Depends(get_session)) -> Dict[str, Any]:
     _agent_job(db, jid)
     a = Artifact(job_id=jid, name=body.name, content_type=body.content_type, node_id=body.node,
@@ -415,8 +426,8 @@ def agent_artifact(jid: int, body: ArtifactIn, db: Session = Depends(get_session
     return {"id": a.id}
 
 
-@app.post("/api/agent/jobs/{jid}/finish", dependencies=auth)
-def agent_finish(jid: int, body: FinishIn, db: Session = Depends(get_session)) -> Dict[str, Any]:
+@app.post("/api/agent/jobs/{jid}/finish", dependencies=[Depends(ROBOT)])
+def agent_finish(jid: int, body: FinishIn, db: Session = Depends(get_session)) -> Dict[str, Any]:  # noqa: D401
     job = _agent_job(db, jid)
     if body.status not in services.FINAL_STATUSES:
         raise HTTPException(422, "Недопустимый статус")
@@ -431,6 +442,11 @@ def _json(data: Dict[str, Any]) -> Response:
 
     return Response(json.dumps(data, ensure_ascii=False, default=str), media_type="application/json")
 
+
+# ---------------------------------------------------------------- расширения 0.2
+from .api_extra import router as extra_router  # noqa: E402
+
+app.include_router(extra_router)
 
 # ---------------------------------------------------------------- веб-интерфейс
 if FRONTEND_DIST.exists():

@@ -1,0 +1,213 @@
+{
+  "name": "Уведомления о просроченной задолженности",
+  "category": "Банк",
+  "description": "Выбирает из АБС клиентов с просрочкой, формирует персональные письма по шаблону с суммой прописью и ведёт журнал отправки в Excel.",
+  "minutes_saved": 60,
+  "tags": [
+    "взыскание",
+    "SQL",
+    "почта"
+  ],
+  "requires": [],
+  "definition": {
+    "variables": [
+      {
+        "name": "журнал",
+        "default": "D:\\Взыскание\\журнал.xlsx"
+      }
+    ],
+    "outputs": [],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "q",
+        "type": "db.query",
+        "label": "Просрочка из АБС",
+        "params": {
+          "connection": "mssql+pyodbc://rpa:{password}@abs/ABS?driver=ODBC+Driver+18+for+SQL+Server",
+          "password": "abs_db_password",
+          "sql": "SELECT contract, client_name, email, overdue_amount, overdue_days FROM v_overdue WHERE overdue_days BETWEEN :d1 AND :d2 AND email IS NOT NULL",
+          "params": "{\"d1\": 5, \"d2\": 30}",
+          "result": "должники"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "book",
+        "type": "excel.open",
+        "label": "Журнал",
+        "params": {
+          "path": "{{ журнал }}",
+          "book": "журнал",
+          "create": true
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "loop",
+        "type": "core.for_each",
+        "label": "По каждому клиенту",
+        "params": {
+          "collection": "должники",
+          "item": "д"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "words",
+        "type": "bank.amount_words",
+        "label": "Сумма прописью",
+        "params": {
+          "amount": "{{ д['overdue_amount'] }}",
+          "result": "прописью"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "text",
+        "type": "text.template",
+        "label": "Текст письма",
+        "params": {
+          "result": "письмо",
+          "template": "Уважаемый(ая) {{ д['client_name'] }}!\n\nПо договору {{ д['contract'] }} образовалась просроченная задолженность {{ '%.2f' % д['overdue_amount'] }} руб. ({{ прописью }}), срок просрочки {{ д['overdue_days'] }} дн.\nПросим погасить задолженность в ближайшее время."
+        },
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      },
+      {
+        "id": "send",
+        "type": "email.send",
+        "label": "Отправить",
+        "params": {
+          "host": "smtp.bank.local",
+          "port": 587,
+          "security": "starttls",
+          "username": "collect@bank.ru",
+          "password": "smtp_password",
+          "sender": "collect@bank.ru",
+          "to": "{{ д['email'] }}",
+          "subject": "Просроченная задолженность по договору {{ д['contract'] }}",
+          "body": "{{ письмо }}"
+        },
+        "position": {
+          "x": 1690,
+          "y": 210
+        }
+      },
+      {
+        "id": "log",
+        "type": "excel.append_row",
+        "label": "Отметка в журнале",
+        "params": {
+          "book": "журнал",
+          "sheet": "Отправлено",
+          "values": "[str(now())[:16], д['contract'], д['email'], д['overdue_amount']]"
+        },
+        "position": {
+          "x": 2020,
+          "y": 210
+        }
+      },
+      {
+        "id": "save",
+        "type": "excel.save",
+        "label": "Сохранить журнал",
+        "params": {
+          "book": "журнал"
+        },
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 1690,
+          "y": 40
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "q"
+      },
+      {
+        "id": "e1",
+        "source": "q",
+        "sourceHandle": "out",
+        "target": "book"
+      },
+      {
+        "id": "e2",
+        "source": "book",
+        "sourceHandle": "out",
+        "target": "loop"
+      },
+      {
+        "id": "e3",
+        "source": "loop",
+        "sourceHandle": "body",
+        "target": "words"
+      },
+      {
+        "id": "e4",
+        "source": "words",
+        "sourceHandle": "out",
+        "target": "text"
+      },
+      {
+        "id": "e5",
+        "source": "text",
+        "sourceHandle": "out",
+        "target": "send"
+      },
+      {
+        "id": "e6",
+        "source": "send",
+        "sourceHandle": "out",
+        "target": "log"
+      },
+      {
+        "id": "e7",
+        "source": "loop",
+        "sourceHandle": "done",
+        "target": "save"
+      },
+      {
+        "id": "e8",
+        "source": "save",
+        "sourceHandle": "out",
+        "target": "end"
+      }
+    ]
+  }
+}

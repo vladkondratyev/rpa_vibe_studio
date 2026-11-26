@@ -1,0 +1,188 @@
+{
+  "name": "Скрининг клиентов по перечням (115-ФЗ)",
+  "category": "Банк",
+  "description": "Ежедневно сверяет клиентов из базы с перечнем Росфинмониторинга и стоп-листами банка: точное совпадение по ИНН и нечёткое по ФИО. Совпадения — в очередь комплаенс-контроля и задачу в Трекер.",
+  "minutes_saved": 180,
+  "tags": [
+    "AML",
+    "115-ФЗ",
+    "комплаенс",
+    "очереди"
+  ],
+  "requires": [],
+  "definition": {
+    "variables": [
+      {
+        "name": "перечень",
+        "default": "D:\\AML\\перечень_рфм.csv"
+      },
+      {
+        "name": "организация",
+        "default": "bpf..."
+      }
+    ],
+    "outputs": [
+      "совпадения"
+    ],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "cl",
+        "type": "db.query",
+        "label": "Клиенты из АБС",
+        "params": {
+          "connection": "postgresql+psycopg://rpa:{password}@abs-db/abs",
+          "password": "abs_db_password",
+          "sql": "SELECT client_id, full_name AS name, inn FROM clients WHERE active",
+          "result": "клиенты"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "lst",
+        "type": "files.read_csv",
+        "label": "Перечень (CSV)",
+        "params": {
+          "path": "{{ перечень }}",
+          "delimiter": ";",
+          "result": "перечень"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "scr",
+        "type": "bank.screen",
+        "label": "Сверка с перечнем",
+        "params": {
+          "subjects": "клиенты",
+          "watchlist": "перечень",
+          "list_name_field": "ФИО",
+          "list_inn_field": "ИНН",
+          "threshold": 0.9,
+          "result": "совпадения"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "q",
+        "type": "queue.add",
+        "label": "В очередь комплаенса",
+        "params": {
+          "queue": "Комплаенс: совпадения",
+          "many": true,
+          "data": "{{ совпадения }}",
+          "priority": 10
+        },
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      },
+      {
+        "id": "task",
+        "type": "yandex.tracker_issue",
+        "label": "Задача контролёру",
+        "params": {
+          "token": "yandex_oauth",
+          "org_id": "{{ организация }}",
+          "queue": "AML",
+          "summary": "Совпадения с перечнем: {{ len(совпадения) }}",
+          "description": "Проверьте элементы очереди «Комплаенс: совпадения»."
+        },
+        "position": {
+          "x": 1690,
+          "y": 40
+        }
+      },
+      {
+        "id": "clean",
+        "type": "core.log",
+        "label": "Совпадений нет",
+        "params": {
+          "message": "Проверено клиентов: {{ len(клиенты) }}, совпадений нет"
+        },
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 2020,
+          "y": 40
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "cl"
+      },
+      {
+        "id": "e1",
+        "source": "cl",
+        "sourceHandle": "out",
+        "target": "lst"
+      },
+      {
+        "id": "e2",
+        "source": "lst",
+        "sourceHandle": "out",
+        "target": "scr"
+      },
+      {
+        "id": "e3",
+        "source": "scr",
+        "sourceHandle": "hits",
+        "target": "q"
+      },
+      {
+        "id": "e4",
+        "source": "q",
+        "sourceHandle": "out",
+        "target": "task"
+      },
+      {
+        "id": "e5",
+        "source": "task",
+        "sourceHandle": "out",
+        "target": "end"
+      },
+      {
+        "id": "e6",
+        "source": "scr",
+        "sourceHandle": "clean",
+        "target": "clean"
+      },
+      {
+        "id": "e7",
+        "source": "clean",
+        "sourceHandle": "out",
+        "target": "end"
+      }
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+# Быстрый старт:  RPA_TOKEN=$(openssl rand -hex 24) docker compose up -d
+# Интерфейс: http://localhost:8000  (вход по RPA_TOKEN, затем создайте пользователей)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: rpa
+      POSTGRES_USER: rpa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rpa-change-me}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+
+  orchestrator:
+    build: {context: ., target: orchestrator}
+    environment:
+      RPA_TOKEN: ${RPA_TOKEN:?задайте RPA_TOKEN}
+      RPA_DATABASE_URL: postgresql+psycopg://rpa:${POSTGRES_PASSWORD:-rpa-change-me}@db/rpa
+      RPA_SECRET_KEY: ${RPA_SECRET_KEY:-}
+      RPA_PUBLIC_URL: ${RPA_PUBLIC_URL:-http://localhost:8000}
+    volumes: [data:/data]
+    ports: ["8000:8000"]
+    depends_on: [db]
+    restart: unless-stopped
+
+  robot:
+    build: {context: ., target: robot}
+    command: ["--server", "http://orchestrator:8000", "--name", "docker-robot-1", "--tags", "web,ocr"]
+    environment:
+      RPA_TOKEN: ${RPA_TOKEN}
+    depends_on: [orchestrator]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  data:

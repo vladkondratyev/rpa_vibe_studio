@@ -1,0 +1,177 @@
+{
+  "name": "Мониторинг ключевой ставки ЦБ",
+  "category": "Банк",
+  "description": "Проверяет ключевую ставку Банка России и при изменении сообщает в Яндекс Мессенджер и создаёт задачу в Трекере на пересмотр ставок по продуктам.",
+  "minutes_saved": 15,
+  "tags": [
+    "ЦБ РФ",
+    "ALM",
+    "Яндекс"
+  ],
+  "requires": [],
+  "definition": {
+    "variables": [
+      {
+        "name": "чат",
+        "default": "0/0/xxxxxxxx"
+      },
+      {
+        "name": "организация",
+        "default": "bpf..."
+      }
+    ],
+    "outputs": [
+      "текущая"
+    ],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "kr",
+        "type": "bank.cbr_key_rate",
+        "label": "Ключевая ставка за 30 дней",
+        "params": {
+          "days": 30,
+          "result": "ставки"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "calc",
+        "type": "core.python",
+        "label": "Сравнить с прошлым значением",
+        "params": {
+          "code": "текущая = ставки[-1]['rate'] if ставки else None\nпрошлая = next((s['rate'] for s in reversed(ставки) if s['rate'] != текущая), текущая)\nизменилась = текущая != прошлая and ставки[-1]['date'] >= str(today() - datetime.timedelta(days=1))"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "if",
+        "type": "core.if",
+        "label": "Изменилась?",
+        "params": {
+          "condition": "изменилась"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "msg",
+        "type": "yandex.messenger",
+        "label": "Сообщение в Мессенджер",
+        "params": {
+          "token": "yandex_bot",
+          "chat_id": "{{ чат }}",
+          "text": "Ключевая ставка изменена: {{ прошлая }}% → {{ текущая }}%"
+        },
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      },
+      {
+        "id": "task",
+        "type": "yandex.tracker_issue",
+        "label": "Задача в Трекер",
+        "params": {
+          "token": "yandex_oauth",
+          "org_id": "{{ организация }}",
+          "queue": "ALM",
+          "summary": "Пересмотреть ставки: ключевая {{ текущая }}%",
+          "description": "Банк России изменил ключевую ставку с {{ прошлая }}% до {{ текущая }}%."
+        },
+        "position": {
+          "x": 1690,
+          "y": 40
+        }
+      },
+      {
+        "id": "same",
+        "type": "core.log",
+        "label": "Без изменений",
+        "params": {
+          "message": "Ставка без изменений: {{ текущая }}%"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 2020,
+          "y": 40
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "kr"
+      },
+      {
+        "id": "e1",
+        "source": "kr",
+        "sourceHandle": "out",
+        "target": "calc"
+      },
+      {
+        "id": "e2",
+        "source": "calc",
+        "sourceHandle": "out",
+        "target": "if"
+      },
+      {
+        "id": "e3",
+        "source": "if",
+        "sourceHandle": "true",
+        "target": "msg"
+      },
+      {
+        "id": "e4",
+        "source": "msg",
+        "sourceHandle": "out",
+        "target": "task"
+      },
+      {
+        "id": "e5",
+        "source": "task",
+        "sourceHandle": "out",
+        "target": "end"
+      },
+      {
+        "id": "e6",
+        "source": "if",
+        "sourceHandle": "false",
+        "target": "same"
+      },
+      {
+        "id": "e7",
+        "source": "same",
+        "sourceHandle": "out",
+        "target": "end"
+      }
+    ]
+  }
+}

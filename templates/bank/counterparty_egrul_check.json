@@ -1,0 +1,242 @@
+{
+  "name": "Проверка контрагентов по ЕГРЮЛ (KYC)",
+  "category": "Банк",
+  "description": "Берёт список ИНН из Excel, проверяет контрольные суммы, получает сведения ЕГРЮЛ/ЕГРИП и отмечает ликвидированные и несуществующие компании.",
+  "minutes_saved": 120,
+  "tags": [
+    "KYC",
+    "ФНС",
+    "контрагенты"
+  ],
+  "requires": [],
+  "definition": {
+    "variables": [
+      {
+        "name": "файл",
+        "default": "D:\\KYC\\контрагенты.xlsx"
+      }
+    ],
+    "outputs": [],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "book",
+        "type": "excel.open",
+        "label": "Список контрагентов",
+        "params": {
+          "path": "{{ файл }}",
+          "book": "контрагенты"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "rows",
+        "type": "excel.read_table",
+        "label": "Прочитать таблицу",
+        "params": {
+          "book": "контрагенты",
+          "sheet": "Лист1",
+          "result": "список"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "loop",
+        "type": "core.for_each",
+        "label": "По каждому ИНН",
+        "params": {
+          "collection": "список",
+          "item": "к"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "inn",
+        "type": "bank.validate",
+        "label": "ИНН корректен?",
+        "params": {
+          "kind": "inn",
+          "value": "{{ к['ИНН'] }}"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "egrul",
+        "type": "bank.egrul",
+        "label": "Запрос в ЕГРЮЛ",
+        "params": {
+          "query": "{{ к['ИНН'] }}",
+          "result": "сведения"
+        },
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      },
+      {
+        "id": "delay",
+        "type": "core.delay",
+        "label": "Пауза (лимиты ФНС)",
+        "params": {
+          "seconds": 2
+        },
+        "position": {
+          "x": 1690,
+          "y": 210
+        }
+      },
+      {
+        "id": "okrow",
+        "type": "excel.append_row",
+        "label": "Результат",
+        "params": {
+          "book": "контрагенты",
+          "sheet": "Проверка",
+          "values": "[к['ИНН'], сведения[0]['name'], сведения[0]['ogrn'], сведения[0]['director'], 'ПРЕКРАЩЕНА ' + сведения[0]['terminated'] if сведения[0]['terminated'] else 'действует']"
+        },
+        "position": {
+          "x": 2020,
+          "y": 210
+        }
+      },
+      {
+        "id": "nf",
+        "type": "excel.append_row",
+        "label": "Не найден",
+        "params": {
+          "book": "контрагенты",
+          "sheet": "Проверка",
+          "values": "[к['ИНН'], '', '', '', 'не найден в ЕГРЮЛ']"
+        },
+        "position": {
+          "x": 1360,
+          "y": 380
+        }
+      },
+      {
+        "id": "bad",
+        "type": "excel.append_row",
+        "label": "Ошибка в ИНН",
+        "params": {
+          "book": "контрагенты",
+          "sheet": "Проверка",
+          "values": "[к['ИНН'], '', '', '', 'неверная контрольная сумма ИНН']"
+        },
+        "position": {
+          "x": 1030,
+          "y": 380
+        }
+      },
+      {
+        "id": "save",
+        "type": "excel.save",
+        "label": "Сохранить",
+        "params": {
+          "book": "контрагенты"
+        },
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 1690,
+          "y": 40
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "book"
+      },
+      {
+        "id": "e1",
+        "source": "book",
+        "sourceHandle": "out",
+        "target": "rows"
+      },
+      {
+        "id": "e2",
+        "source": "rows",
+        "sourceHandle": "out",
+        "target": "loop"
+      },
+      {
+        "id": "e3",
+        "source": "loop",
+        "sourceHandle": "body",
+        "target": "inn"
+      },
+      {
+        "id": "e4",
+        "source": "inn",
+        "sourceHandle": "valid",
+        "target": "egrul"
+      },
+      {
+        "id": "e5",
+        "source": "inn",
+        "sourceHandle": "invalid",
+        "target": "bad"
+      },
+      {
+        "id": "e6",
+        "source": "egrul",
+        "sourceHandle": "found",
+        "target": "delay"
+      },
+      {
+        "id": "e7",
+        "source": "egrul",
+        "sourceHandle": "not_found",
+        "target": "nf"
+      },
+      {
+        "id": "e8",
+        "source": "delay",
+        "sourceHandle": "out",
+        "target": "okrow"
+      },
+      {
+        "id": "e9",
+        "source": "loop",
+        "sourceHandle": "done",
+        "target": "save"
+      },
+      {
+        "id": "e10",
+        "source": "save",
+        "sourceHandle": "out",
+        "target": "end"
+      }
+    ]
+  }
+}

@@ -1,0 +1,215 @@
+{
+  "name": "Реестр выплат Excel → платёжки 1С → Яндекс Диск",
+  "category": "Банк",
+  "description": "Читает реестр выплат из Excel, проверяет ключ счёта по БИК, формирует файл платёжных поручений 1CClientBankExchange, кладёт его на Яндекс Диск и сообщает в Мессенджер.",
+  "minutes_saved": 45,
+  "tags": [
+    "платежи",
+    "1С",
+    "Яндекс Диск"
+  ],
+  "requires": [],
+  "definition": {
+    "variables": [
+      {
+        "name": "реестр",
+        "default": "D:\\Выплаты\\реестр.xlsx"
+      },
+      {
+        "name": "счёт_банка",
+        "default": "40702810900000000001"
+      },
+      {
+        "name": "папка",
+        "default": "D:\\Выплаты"
+      },
+      {
+        "name": "чат",
+        "default": "0/0/xxx"
+      }
+    ],
+    "outputs": [],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "book",
+        "type": "excel.open",
+        "label": "Реестр выплат",
+        "params": {
+          "path": "{{ реестр }}",
+          "book": "реестр"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "rows",
+        "type": "excel.read_table",
+        "label": "Строки реестра",
+        "params": {
+          "book": "реестр",
+          "sheet": "Выплаты",
+          "result": "выплаты"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "chk",
+        "type": "core.python",
+        "label": "Проверить счета",
+        "params": {
+          "code": "from rpa_engine.banking import check_account, check_inn\nошибки = [в for в in выплаты if not check_account(в['Счёт'], в['БИК']) or not check_inn(в['ИНН'])]\nплатежи = [{'Сумма': в['Сумма'], 'Получатель': в['Получатель'], 'ПолучательИНН': в['ИНН'],\n            'ПолучательСчет': в['Счёт'], 'ПолучательБИК': в['БИК'],\n            'НазначениеПлатежа': в['Назначение']} for в in выплаты if в not in ошибки]"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "if",
+        "type": "core.if",
+        "label": "Есть ошибки?",
+        "params": {
+          "condition": "ошибки"
+        },
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      },
+      {
+        "id": "stop",
+        "type": "core.fail",
+        "label": "Остановить",
+        "params": {
+          "message": "Ошибки в реквизитах: {{ [о['Получатель'] for о in ошибки] }}"
+        },
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      },
+      {
+        "id": "file",
+        "type": "bank.write_1c",
+        "label": "Файл платёжек",
+        "params": {
+          "payments": "платежи",
+          "account": "{{ счёт_банка }}",
+          "path": "{{ папка }}\\1c_to_kl.txt"
+        },
+        "position": {
+          "x": 1690,
+          "y": 40
+        }
+      },
+      {
+        "id": "disk",
+        "type": "yadisk.upload",
+        "label": "На Яндекс Диск",
+        "params": {
+          "token": "yandex_oauth",
+          "file": "{{ папка }}\\1c_to_kl.txt",
+          "path": "disk:/Платежи/{{ today().isoformat() }}/"
+        },
+        "position": {
+          "x": 2020,
+          "y": 40
+        }
+      },
+      {
+        "id": "msg",
+        "type": "yandex.messenger",
+        "label": "Сообщить",
+        "params": {
+          "token": "yandex_bot",
+          "chat_id": "{{ чат }}",
+          "text": "Сформировано платёжек: {{ len(платежи) }} на сумму {{ sum(п['Сумма'] for п in платежи) }} руб."
+        },
+        "position": {
+          "x": 2020,
+          "y": 210
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 2350,
+          "y": 210
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "book"
+      },
+      {
+        "id": "e1",
+        "source": "book",
+        "sourceHandle": "out",
+        "target": "rows"
+      },
+      {
+        "id": "e2",
+        "source": "rows",
+        "sourceHandle": "out",
+        "target": "chk"
+      },
+      {
+        "id": "e3",
+        "source": "chk",
+        "sourceHandle": "out",
+        "target": "if"
+      },
+      {
+        "id": "e4",
+        "source": "if",
+        "sourceHandle": "true",
+        "target": "stop"
+      },
+      {
+        "id": "e5",
+        "source": "if",
+        "sourceHandle": "false",
+        "target": "file"
+      },
+      {
+        "id": "e6",
+        "source": "file",
+        "sourceHandle": "out",
+        "target": "disk"
+      },
+      {
+        "id": "e7",
+        "source": "disk",
+        "sourceHandle": "out",
+        "target": "msg"
+      },
+      {
+        "id": "e8",
+        "source": "msg",
+        "sourceHandle": "out",
+        "target": "end"
+      }
+    ]
+  }
+}

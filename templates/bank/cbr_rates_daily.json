@@ -1,0 +1,152 @@
+{
+  "name": "Курсы валют ЦБ РФ в Excel и Telegram",
+  "category": "Банк",
+  "description": "Каждое утро загружает официальные курсы Банка России, дописывает строку в журнал курсов Excel и отправляет сводку USD/EUR/CNY в чат казначейства.",
+  "minutes_saved": 10,
+  "tags": [
+    "ЦБ РФ",
+    "казначейство",
+    "Excel"
+  ],
+  "requires": [],
+  "definition": {
+    "variables": [
+      {
+        "name": "журнал",
+        "default": "D:\\Казначейство\\курсы_цб.xlsx"
+      },
+      {
+        "name": "чат",
+        "default": "-1001234567890"
+      }
+    ],
+    "outputs": [
+      "rates"
+    ],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "rates",
+        "type": "bank.cbr_rates",
+        "label": "Курсы ЦБ на сегодня",
+        "params": {
+          "result": "rates"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "book",
+        "type": "excel.open",
+        "label": "Журнал курсов",
+        "params": {
+          "path": "{{ журнал }}",
+          "book": "курсы",
+          "create": true
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "row",
+        "type": "excel.append_row",
+        "label": "Добавить строку",
+        "params": {
+          "book": "курсы",
+          "sheet": "Курсы",
+          "values": "[rates['date'], rates['rates']['USD']['per_unit'], rates['rates']['EUR']['per_unit'], rates['rates']['CNY']['per_unit']]"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "save",
+        "type": "excel.save",
+        "label": "Сохранить",
+        "params": {
+          "book": "курсы"
+        },
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      },
+      {
+        "id": "msg",
+        "type": "notify.telegram",
+        "label": "Сводка в Telegram",
+        "params": {
+          "token": "telegram_bot",
+          "chat_id": "{{ чат }}",
+          "text": "Курсы ЦБ на {{ rates['date'] }}:\nUSD {{ rates['rates']['USD']['per_unit'] }}\nEUR {{ rates['rates']['EUR']['per_unit'] }}\nCNY {{ rates['rates']['CNY']['per_unit'] }}"
+        },
+        "position": {
+          "x": 370,
+          "y": 210
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 700,
+          "y": 210
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "rates"
+      },
+      {
+        "id": "e1",
+        "source": "rates",
+        "sourceHandle": "out",
+        "target": "book"
+      },
+      {
+        "id": "e2",
+        "source": "book",
+        "sourceHandle": "out",
+        "target": "row"
+      },
+      {
+        "id": "e3",
+        "source": "row",
+        "sourceHandle": "out",
+        "target": "save"
+      },
+      {
+        "id": "e4",
+        "source": "save",
+        "sourceHandle": "out",
+        "target": "msg"
+      },
+      {
+        "id": "e5",
+        "source": "msg",
+        "sourceHandle": "out",
+        "target": "end"
+      }
+    ]
+  }
+}

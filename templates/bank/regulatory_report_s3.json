@@ -1,0 +1,199 @@
+{
+  "name": "Ежедневная отчётность в Object Storage",
+  "category": "Банк",
+  "description": "Собирает данные отчёта SQL-запросом, сохраняет в Excel, загружает в Yandex Object Storage и отправляет временную ссылку в Telegram.",
+  "minutes_saved": 40,
+  "tags": [
+    "отчётность",
+    "SQL",
+    "Yandex Object Storage"
+  ],
+  "requires": [],
+  "definition": {
+    "variables": [
+      {
+        "name": "файл",
+        "default": "D:\\Отчёты\\остатки.xlsx"
+      },
+      {
+        "name": "чат",
+        "default": "-100123"
+      }
+    ],
+    "outputs": [],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "q",
+        "type": "db.query",
+        "label": "Данные отчёта",
+        "params": {
+          "connection": "postgresql+psycopg://rpa:{password}@dwh/dwh",
+          "password": "dwh_password",
+          "sql": "SELECT branch, product, SUM(balance) AS balance FROM balances WHERE dt = CURRENT_DATE - 1 GROUP BY branch, product ORDER BY branch",
+          "result": "данные"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "book",
+        "type": "excel.open",
+        "label": "Книга",
+        "params": {
+          "path": "{{ файл }}",
+          "book": "отчёт",
+          "create": true
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "w",
+        "type": "excel.write_table",
+        "label": "Таблица",
+        "params": {
+          "book": "отчёт",
+          "sheet": "Остатки",
+          "rows": "данные"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "save",
+        "type": "excel.save",
+        "label": "Сохранить",
+        "params": {
+          "book": "отчёт"
+        },
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      },
+      {
+        "id": "up",
+        "type": "s3.upload",
+        "label": "В Object Storage",
+        "params": {
+          "access_key": "YCAJ...",
+          "secret_key": "yandex_s3_secret",
+          "bucket": "bank-reports",
+          "file": "{{ файл }}",
+          "key": "daily/{{ today().isoformat() }}/остатки.xlsx",
+          "result": "ключ"
+        },
+        "position": {
+          "x": 370,
+          "y": 210
+        }
+      },
+      {
+        "id": "link",
+        "type": "s3.link",
+        "label": "Временная ссылка",
+        "params": {
+          "access_key": "YCAJ...",
+          "secret_key": "yandex_s3_secret",
+          "bucket": "bank-reports",
+          "key": "{{ ключ }}",
+          "expires": 86400,
+          "result": "ссылка"
+        },
+        "position": {
+          "x": 700,
+          "y": 210
+        }
+      },
+      {
+        "id": "tg",
+        "type": "notify.telegram",
+        "label": "Ссылка в Telegram",
+        "params": {
+          "token": "telegram_bot",
+          "chat_id": "{{ чат }}",
+          "text": "Отчёт об остатках за вчера: {{ ссылка }}"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "q"
+      },
+      {
+        "id": "e1",
+        "source": "q",
+        "sourceHandle": "out",
+        "target": "book"
+      },
+      {
+        "id": "e2",
+        "source": "book",
+        "sourceHandle": "out",
+        "target": "w"
+      },
+      {
+        "id": "e3",
+        "source": "w",
+        "sourceHandle": "out",
+        "target": "save"
+      },
+      {
+        "id": "e4",
+        "source": "save",
+        "sourceHandle": "out",
+        "target": "up"
+      },
+      {
+        "id": "e5",
+        "source": "up",
+        "sourceHandle": "out",
+        "target": "link"
+      },
+      {
+        "id": "e6",
+        "source": "link",
+        "sourceHandle": "out",
+        "target": "tg"
+      },
+      {
+        "id": "e7",
+        "source": "tg",
+        "sourceHandle": "out",
+        "target": "end"
+      }
+    ]
+  }
+}

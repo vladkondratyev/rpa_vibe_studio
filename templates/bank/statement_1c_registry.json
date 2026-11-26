@@ -1,0 +1,192 @@
+{
+  "name": "Выписка 1С → реестр операций Excel",
+  "category": "Банк",
+  "description": "Разбирает выписку в формате 1CClientBankExchange (kl_to_1c.txt), выгружает операции в Excel и считает обороты по контрагентам.",
+  "minutes_saved": 30,
+  "tags": [
+    "1С",
+    "выписка",
+    "Excel"
+  ],
+  "requires": [],
+  "definition": {
+    "variables": [
+      {
+        "name": "файл_выписки",
+        "default": "D:\\Обмен\\kl_to_1c.txt"
+      },
+      {
+        "name": "отчёт",
+        "default": "D:\\Отчёты\\реестр_операций.xlsx"
+      }
+    ],
+    "outputs": [
+      "обороты"
+    ],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "read",
+        "type": "bank.read_1c",
+        "label": "Прочитать выписку",
+        "params": {
+          "path": "{{ файл_выписки }}",
+          "result": "выписка"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "ops",
+        "type": "core.python",
+        "label": "Операции в таблицу",
+        "params": {
+          "code": "операции = [{'Дата': d.get('Дата'), 'Номер': d.get('Номер'), 'Сумма': d.get('Сумма'),\n             'Плательщик': d.get('Плательщик'), 'Получатель': d.get('Получатель'),\n             'ИНН получателя': d.get('ПолучательИНН'), 'Назначение': d.get('НазначениеПлатежа')}\n            for d in выписка['documents']]"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "grp",
+        "type": "table.group_sum",
+        "label": "Обороты по получателям",
+        "params": {
+          "rows": "операции",
+          "by": "Получатель",
+          "sum": "Сумма",
+          "result": "обороты"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "book",
+        "type": "excel.open",
+        "label": "Новая книга",
+        "params": {
+          "path": "{{ отчёт }}",
+          "book": "реестр",
+          "create": true
+        },
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      },
+      {
+        "id": "t1",
+        "type": "excel.write_table",
+        "label": "Лист «Операции»",
+        "params": {
+          "book": "реестр",
+          "sheet": "Операции",
+          "rows": "операции"
+        },
+        "position": {
+          "x": 370,
+          "y": 210
+        }
+      },
+      {
+        "id": "t2",
+        "type": "excel.write_table",
+        "label": "Лист «Обороты»",
+        "params": {
+          "book": "реестр",
+          "sheet": "Обороты",
+          "rows": "обороты"
+        },
+        "position": {
+          "x": 700,
+          "y": 210
+        }
+      },
+      {
+        "id": "save",
+        "type": "excel.save",
+        "label": "Сохранить",
+        "params": {
+          "book": "реестр"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "read"
+      },
+      {
+        "id": "e1",
+        "source": "read",
+        "sourceHandle": "out",
+        "target": "ops"
+      },
+      {
+        "id": "e2",
+        "source": "ops",
+        "sourceHandle": "out",
+        "target": "grp"
+      },
+      {
+        "id": "e3",
+        "source": "grp",
+        "sourceHandle": "out",
+        "target": "book"
+      },
+      {
+        "id": "e4",
+        "source": "book",
+        "sourceHandle": "out",
+        "target": "t1"
+      },
+      {
+        "id": "e5",
+        "source": "t1",
+        "sourceHandle": "out",
+        "target": "t2"
+      },
+      {
+        "id": "e6",
+        "source": "t2",
+        "sourceHandle": "out",
+        "target": "save"
+      },
+      {
+        "id": "e7",
+        "source": "save",
+        "sourceHandle": "out",
+        "target": "end"
+      }
+    ]
+  }
+}

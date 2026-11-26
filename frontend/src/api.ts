@@ -1,7 +1,7 @@
 export type ParamDef = {
   name: string;
   label: string;
-  kind: "string" | "text" | "code" | "expression" | "number" | "boolean" | "select" | "variable";
+  kind: "string" | "text" | "code" | "expression" | "number" | "boolean" | "select" | "variable" | "secret";
   required: boolean;
   default: unknown;
   options: string[] | null;
@@ -40,6 +40,7 @@ export type Process = {
   name: string;
   description: string;
   version: number;
+  minutes_saved?: number;
   updated_at: string;
   definition?: Definition;
 };
@@ -92,6 +93,28 @@ export type Schedule = {
 export type LogLine = { id: number; ts: string; level: string; node_id: string | null; message: string };
 export type ArtifactInfo = { id: number; name: string; content_type: string; node_id: string | null; created_at: string };
 
+export type Me = { username: string; role: string; user_id: number | null };
+export const ROLE_LABEL: Record<string, string> = {
+  admin: "Администратор",
+  developer: "Разработчик",
+  operator: "Оператор",
+  viewer: "Наблюдатель",
+  robot: "Робот",
+};
+const ROLE_ORDER = ["viewer", "operator", "developer", "admin"];
+export function can(me: Me | null, role: string): boolean {
+  if (!me) return false;
+  return ROLE_ORDER.indexOf(me.role) >= ROLE_ORDER.indexOf(role);
+}
+
+export function download(name: string, data: unknown) {
+  const blob = new Blob([typeof data === "string" ? data : JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+}
+
 const TOKEN_KEY = "rpa-token";
 
 export function getToken(): string {
@@ -135,7 +158,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   const res = await fetch(path, { ...init, headers, body });
   if (res.status === 401) {
     onUnauthorized();
-    throw new ApiError(401, "Нужен токен доступа");
+    throw new ApiError(401, "Требуется вход");
   }
   if (!res.ok) {
     let detail: unknown = res.statusText;

@@ -1,165 +1,204 @@
 <div align="center">
 
-# ◆ RPA Vibe Studio
+<img src="docs/img/logo.svg" width="112" alt="Вайби — маскот RPA Vibe Studio">
 
-**Отдайте рутину роботам. Людям — работу, где нужна голова.**
+# RPA Vibe Studio
 
-Open-source RPA-платформа: соберите процесс из блоков мышкой, а роботы на Windows, Linux и macOS выполнят его по расписанию на ваших серверах — с журналом каждого шага и скриншотом при сбое.
+**Открытая RPA-платформа с ИИ: роботы для банков и бэк-офиса — от описания задачи до работающего процесса.**
 
-[Сайт](https://rpa.qso-log.ru) · [Скачать](https://github.com/vladkondratyev/rpa_vibe_studio/releases/latest) · [Установка](#-установка-за-5-минут) · [Возможности](#-возможности) · [Roadmap](#-что-дальше)
+Визуальный дизайнер · 122 готовых блока · 17 шаблонов для банка · свой OCR с шаблонами документов ·
+YandexGPT, GigaChat, Claude и локальные модели · Citrix и десктоп · очереди · аналитика ROI · бесплатно, MIT
+
+[Сайт](https://rpa.qso-log.ru) · [Скачать 0.2.0](https://github.com/vladkondratyev/rpa_vibe_studio/releases/latest) · [Установка](#-установка) · [Шаблоны для банка](#-шаблоны-для-банка) · [Возможности](#-возможности)
 
 ![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-2EAD33?logo=playwright&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-![Дизайнер процессов](docs/img/designer.webp)
+![Аналитика: сэкономленные часы и ROI](docs/img/analytics.webp)
 
 </div>
 
 ## Зачем
 
-Сотрудники часами переносят данные из личных кабинетов в Excel, каждое утро скачивают выписки, построчно сверяют реестры с порталами. Если действие можно описать инструкцией «открой — найди — скопируй — вставь», его может выполнять робот — через тот же интерфейс, что и человек, без доработки ваших систем.
+Операционисты, бухгалтеры и комплаенс-офицеры тратят часы на одно и то же: выгрузить выписку, сверить реестр,
+перепечатать платёжку в АБС, проверить контрагента в ЕГРЮЛ, распознать паспорт, разобрать письма ФНС. Если работу
+можно описать инструкцией, её может делать робот — через те же интерфейсы, что и человек, без доработки ваших систем.
 
-- **Без программирования** — процесс собирается из 46 готовых блоков в визуальном дизайнере.
-- **Без потолка** — нет нужного блока? Блок «Python-код» и любая библиотека Python.
-- **Без облака** — оркестратор, роботы и данные остаются в вашем контуре.
-- **Без лицензий на робота** — MIT, ставьте сколько угодно роботов.
-- **Без Microsoft Office** — Excel-книги читаются и пишутся напрямую, даже на Linux.
+**RPA Vibe Studio** — это коммерческий уровень RPA без коммерческих лицензий:
+
+- ✨ **Vibe-автоматизация.** Опишите задачу словами — модель ИИ соберёт процесс из блоков, вы проверите и запустите.
+- 🏦 **Банк из коробки.** 15 готовых банковских роботов: ЦБ РФ, 1С ↔ Клиент-банк, ЕГРЮЛ, 115-ФЗ, ФНС, Citrix-АБС, OCR паспортов.
+- 🔎 **Свой OCR.** Шаблоны документов — паспорт РФ (с проверкой MRZ), СНИЛС, ВУ, платёжка, счёт, выписка ЕГРЮЛ — и свои, с зонами, нарисованными мышью.
+- 🇷🇺 **Яндекс и российские модели.** YandexGPT, Yandex Vision, SpeechKit, Object Storage, Диск, Трекер, Мессенджер; GigaChat; локальные Qwen/Llama через Ollama и vLLM.
+- 🖥 **Любой интерфейс.** Web (Playwright), окна Windows (UI Automation) и macOS (Accessibility) по селекторам, Citrix/RDP — по картинкам и тексту на экране.
+- 🔐 **Готово к промышленной эксплуатации.** Роли, LDAP/AD, зашифрованное хранилище секретов, аудит, очереди с SLA, аналитика, Docker.
+- 🏠 **Всё в вашем контуре.** Без облака посередине, без лицензий на робота: ставьте сколько угодно.
 
 ## ✨ Возможности
 
 | | |
 |---|---|
-| 🧩 **Визуальный дизайнер** | Drag-and-drop, условия и циклы, переменные, выражения `{{ row['Сумма'] * 1.2 }}` в любых полях, проверка процесса до запуска, версии, копирование блоков, Ctrl+S |
-| 🌐 **Web** (17 блоков) | Клики, ввод, списки, клавиши; селекторы CSS / XPath / `text=` / `role=`; ожидание элементов; извлечение таблиц; скачивание и загрузка файлов; JavaScript; скриншоты. Chromium, Firefox, WebKit, headless |
-| 📊 **Excel** (9 блоков) | Книги `.xlsx` без установленного Excel: ячейки, диапазоны, таблицы с заголовками → список строк, добавление строк, листы |
-| 📁 **Файлы** (10 блоков) | Поиск по маске, копирование, перемещение, удаление, папки, текст и CSV в любой кодировке |
-| 🤖 **Оркестратор** | Очередь задач, роботы с метками (`os=windows`, `excel`, `finance`), назначение на конкретного робота, остановка запуска, обнаружение пропавших роботов |
-| ⏰ **Расписания** | cron и пресеты, свои параметры и метки для каждого расписания, время следующего запуска |
-| 🔍 **Разбор ошибок** | Журнал по шагам в реальном времени, скриншот в момент сбоя, переход «показать блок в дизайнере», ветка «ошибка» для обработки сбоев внутри процесса |
-| 🔌 **REST API** | Запуск процессов, статусы, результаты, журналы и файлы — из 1С, BPM, порталов и скриптов |
-| 🍏 **Desktop macOS** | Управление приложениями через AppleScript из Python-блока (пример: `examples/calculator.json` — Калькулятор → Pages) |
+| 🧩 **Дизайнер** | Drag-and-drop граф: условия, циклы, ветки ошибок, переменные, выражения `{{ row['Сумма'] * 1.2 }}`, проверка до запуска, **история версий с откатом**, экспорт/импорт JSON, выгрузка в Git |
+| ✨ **Процесс по описанию** | «Каждое утро загружай курсы ЦБ и отправляй в Telegram» → готовая схема в дизайнере. Модель знает весь каталог блоков, ответ проходит валидацию и автоисправление |
+| 🎥 **Рекордер** | `python -m rpa_robot record https://portal` — пройдите сценарий в браузере, клики и ввод станут блоками; пароли автоматически заменяются ссылками на секреты |
+| 🏦 **Банк** | Курсы и ключевая ставка ЦБ РФ, формат 1CClientBankExchange (чтение выписок и формирование платёжек), контрольные суммы ИНН/СНИЛС/ОГРН и ключ счёта по БИК, сумма прописью, ЕГРЮЛ/ЕГРИП, скрининг по перечням 115-ФЗ |
+| 🔎 **OCR и документы** | Tesseract локально, Yandex Vision OCR или мультимодальная модель; классификация типа документа; извлечение полей по шаблону; ветка «нужна проверка» → очередь ручной верификации; PDF, Word-шаблоны |
+| 🧠 **ИИ** | Спросить модель, извлечь поля, классифицировать обращение, пересказать — на Claude, YandexGPT, GigaChat или локальной модели. Подключения и ключи — в интерфейсе |
+| 🇷🇺 **Экосистема Яндекса** | Object Storage (S3, своя реализация SigV4), Яндекс Диск, Vision OCR (включая модели паспорта и ВУ), YandexGPT, SpeechKit, Переводчик, Трекер, Мессенджер |
+| 🖥 **Desktop** | Селекторы окон `app=Калькулятор; role=button; name=Равно` для Windows UIA и macOS Accessibility, инспектор элементов, горячие клавиши |
+| 🛰 **Citrix / RDP / VDI** | Поиск образца на экране (OpenCV), клик по тексту через OCR со смещением «в поле справа от подписи», ожидание появления/исчезновения, ввод кириллицы через буфер |
+| 🔌 **Интеграции** | REST, SOAP, 1С через OData (чтение, создание, проведение), SQL (PostgreSQL, MS SQL, Oracle, MySQL), почта IMAP/SMTP с вложениями, Telegram, вебхуки, XML/JSON, сверка таблиц |
+| 📥 **Очереди** | Транзакционная обработка: приоритеты, защита от дублей, повторы при сбое, бизнес-исключения, SLA и просрочки, триггер «запустить N роботов, когда есть работа», правка данных и повтор вручную |
+| 📈 **Аналитика** | Сэкономленные часы, FTE и рубли, успешность, запуски по дням, загрузка роботов, очереди |
+| 🔐 **Безопасность** | Роли (наблюдатель, оператор, разработчик, администратор, робот), вход через LDAP / Active Directory с ролями по группам, персональные API-токены, секреты в шифрованном виде с маскировкой в журналах, полный аудит |
+| 🤖 **Оркестратор** | Роботы на Windows, Linux и macOS по pull-модели, метки, расписания cron, остановка, обнаружение пропавших роботов, уведомления о сбоях в Telegram и вебхук |
 
 <table>
 <tr>
-<td width="50%"><img src="docs/img/job-failed.webp" alt="Разбор ошибки"><br><sub>Сбой — с текстом ошибки, блоком и скриншотом страницы</sub></td>
-<td width="50%"><img src="docs/img/robots.webp" alt="Роботы"><br><sub>Роботы на Windows и Linux, метки, текущие задачи</sub></td>
+<td width="50%"><img src="docs/img/templates.webp" alt="Шаблоны"><br><sub>Галерея шаблонов: создать робота — один клик</sub></td>
+<td width="50%"><img src="docs/img/ocr.webp" alt="OCR"><br><sub>OCR-шаблон: поля, зоны и проверка на образце</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/img/queues.webp" alt="Очереди"><br><sub>Очереди с SLA, повторами и триггерами</sub></td>
+<td width="50%"><img src="docs/img/models.webp" alt="Модели ИИ"><br><sub>YandexGPT, GigaChat, Claude и локальные модели</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/img/designer.webp" alt="Дизайнер"><br><sub>Дизайнер процессов</sub></td>
+<td width="50%"><img src="docs/img/job-failed.webp" alt="Разбор ошибки"><br><sub>Сбой — с ошибкой, блоком и скриншотом</sub></td>
 </tr>
 </table>
 
-## 🚀 Установка за 5 минут
+## 🏦 Шаблоны для банка
 
-Нужен **Python 3.9+**. Готовый архив с собранным веб-интерфейсом — в [Releases](https://github.com/vladkondratyev/rpa_vibe_studio/releases/latest) (Node.js не нужен).
+Готовые процессы в `templates/` и в разделе «Шаблоны» интерфейса. Создайте процесс из шаблона и подставьте свои адреса, пути и имена секретов.
 
-**1. Оркестратор (Linux / macOS)**
+| Шаблон | Что делает | Экономия |
+|---|---|---|
+| Курсы валют ЦБ РФ в Excel и Telegram | Официальные курсы → журнал Excel → сводка казначейству | 10 мин/день |
+| Мониторинг ключевой ставки | Изменение ставки → Мессенджер + задача в Трекере на пересмотр ставок | 15 мин |
+| Выписка 1С → реестр операций | kl_to_1c.txt → операции и обороты по контрагентам в Excel | 30 мин |
+| Сверка платежей банк ↔ 1С | Выписка против реестра оплат 1С (OData), расхождения — в Excel и почту | 90 мин |
+| Проверка контрагентов по ЕГРЮЛ (KYC) | Контрольные суммы ИНН, сведения ФНС, ликвидированные компании | 120 мин |
+| Скрининг по перечням (115-ФЗ) | Клиенты АБС против перечня Росфинмониторинга: ИНН и нечёткое ФИО → очередь комплаенса | 180 мин |
+| Открытие счёта: паспорт | Сканы из почты → OCR паспорта с MRZ → анкета в CRM или ручная проверка | 12 мин/клиент |
+| Решения ФНС о приостановлении | XML из почты → реквизиты решения → приоритетная очередь с SLA | 25 мин |
+| Ввод платёжек в АБС через Citrix | Исполнитель очереди: поля по тексту на экране, ввод, скриншот, повтор при сбое | 6 мин/платёж |
+| Кредитные заявки: ИИ | PDF-анкеты → поля через ИИ → проверка ИНН → база скоринга | 20 мин/заявка |
+| Обращения клиентов | Письма → классификация ИИ → задача в Трекере → ответ клиенту | 8 мин/письмо |
+| Просроченная задолженность | SQL → персональные письма с суммой прописью → журнал | 60 мин |
+| Реестр выплат → платёжки 1С | Проверка счетов по БИК → 1CClientBankExchange → Яндекс Диск | 45 мин |
+| Отчётность в Object Storage | SQL → Excel → Yandex Object Storage → временная ссылка в Telegram | 40 мин |
+| Счета поставщиков: OCR → 1С | Распознавание счетов, проверка ИНН/БИК, документ в 1С | 10 мин/счёт |
+
+## 🚀 Установка
+
+### Docker (оркестратор + PostgreSQL + робот)
 
 ```bash
-unzip rpa-vibe-studio-0.1.0.zip && cd rpa-vibe-studio-0.1.0
-python3 -m venv .venv && source .venv/bin/activate
+git clone https://github.com/vladkondratyev/rpa_vibe_studio && cd rpa_vibe_studio
+export RPA_TOKEN=$(openssl rand -hex 24); echo $RPA_TOKEN
+docker compose up -d
+```
+
+Откройте `http://localhost:8000`, войдите по токену и создайте пользователей в разделе «Пользователи».
+
+### Из архива (Python 3.9+)
+
+Архив с собранным интерфейсом — в [Releases](https://github.com/vladkondratyev/rpa_vibe_studio/releases/latest), Node.js не нужен.
+
+```bash
+unzip rpa-vibe-studio-0.2.0.zip && cd rpa-vibe-studio-0.2.0
+python3 -m venv .venv && source .venv/bin/activate        # Windows: py -m venv .venv; .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-export RPA_TOKEN=$(python -c "import secrets; print(secrets.token_urlsafe(32))"); echo $RPA_TOKEN
+pip install -r requirements-extra.txt                      # OCR, Citrix, PDF/Word, Claude, LDAP — по желанию
+export RPA_TOKEN=$(python -c "import secrets; print(secrets.token_urlsafe(32))")
+python -m orchestrator create-user admin --role admin     # вход по логину и паролю
 uvicorn orchestrator.main:app --host 0.0.0.0 --port 8000
 ```
 
-**Windows (PowerShell)**
-
-```powershell
-Expand-Archive rpa-vibe-studio-0.1.0.zip -DestinationPath .; cd rpa-vibe-studio-0.1.0
-py -m venv .venv; .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-$env:RPA_TOKEN = python -c "import secrets; print(secrets.token_urlsafe(32))"; $env:RPA_TOKEN
-uvicorn orchestrator.main:app --host 0.0.0.0 --port 8000
-```
-
-Откройте `http://<сервер>:8000` и введите токен.
-
-**2. Робот** — на каждой машине, где он будет работать (тот же архив):
+### Робот — на каждой рабочей машине
 
 ```bash
-pip install -r requirements.txt
-python -m playwright install chromium          # для Web-блоков
-python -m rpa_robot agent --server http://<сервер>:8000 --name robot-01 --tags web,excel --token <RPA_TOKEN>
+pip install -r requirements.txt && python -m playwright install chromium
+python -m rpa_robot agent --server http://<оркестратор>:8000 --name robot-01 --tags web,excel,citrix --token <токен>
 ```
 
-**3. Отладка без оркестратора**
-
-```bash
-python -m rpa_robot run examples/calculator.json --var 'expression=12*7'
-```
+Токен робота — RPA_TOKEN или персональный токен пользователя с ролью «Робот». Для OCR установите Tesseract с русским
+языком (`apt install tesseract-ocr-rus`, `brew install tesseract-lang`, установщик UB-Mannheim для Windows).
 
 ### Настройки
 
-| Переменная | Назначение | По умолчанию |
-|---|---|---|
-| `RPA_TOKEN` | общий токен для UI, API и роботов | пусто — API открыт (только для разработки!) |
-| `RPA_DATABASE_URL` | БД, например `postgresql+psycopg://user:pass@host/rpa` | `sqlite:///./rpa.db` |
-| `RPA_SERVER`, `RPA_ROBOT_NAME`, `RPA_ROBOT_TAGS` | значения по умолчанию для робота | |
+| Переменная | Назначение |
+|---|---|
+| `RPA_TOKEN` | Главный ключ (права администратора и робота) |
+| `RPA_DATABASE_URL` | `postgresql+psycopg://user:pass@host/rpa` для промышленной эксплуатации; по умолчанию SQLite |
+| `RPA_SECRET_KEY` | Ключ шифрования хранилища секретов (иначе создаётся файл `rpa_secret.key` — сохраните его копию) |
+| `RPA_LDAP_URL`, `RPA_LDAP_USER`, `RPA_LDAP_BASE`, `RPA_LDAP_ROLES` | Вход через Active Directory: `ldaps://dc.corp.local`, `{username}@corp.local`, `dc=corp,dc=local`, `CN=RPA-Admins,…=admin;CN=RPA-Dev,…=developer` |
+| `RPA_NOTIFY_TELEGRAM_TOKEN`, `RPA_NOTIFY_TELEGRAM_CHAT`, `RPA_NOTIFY_WEBHOOK` | Уведомления о сбоях процессов |
+| `RPA_PUBLIC_URL` | Адрес интерфейса для ссылок в уведомлениях |
+| `RPA_HOUR_COST` | Стоимость часа сотрудника для расчёта экономии в рублях |
 
-Для PostgreSQL дополнительно: `pip install "psycopg[binary]"`. Для приложений macOS дайте программе, из которой запущен робот, доступ в «Конфиденциальность → Универсальный доступ».
+## 🛠 Инструменты робота
+
+```bash
+python -m rpa_robot run process.json --var файл=/tmp/in.xlsx       # отладка процесса локально
+python -m rpa_robot record https://portal.example.com --out p.json  # рекордер действий в браузере
+python -m rpa_robot inspect --app Calculator                        # элементы окна и готовые селекторы
+python -m orchestrator export ./processes --git                     # процессы в Git
+```
 
 ## 🏗 Архитектура и стек
 
 ```
- Браузер ──► Оркестратор (FastAPI) ──► очередь ──► Роботы (Windows / Linux / macOS)
- Дизайнер     процессы · версии ·                   движок графа блоков
- (React)      расписания · журналы ◄── логи, ────   Playwright · openpyxl · Python
-              PostgreSQL / SQLite      скриншоты
+ Браузер ─┐                      ┌─ Робот Windows (Web, Excel, UIA, Citrix)
+ 1С / BPM ┼─ REST ─ Оркестратор ─┼─ Робот Linux / Docker (Web, OCR, SQL, ИИ)
+ Скрипты ─┘     FastAPI + БД     └─ Робот macOS (Web, Accessibility)
+                 │  очереди, расписания, секреты, роли, аудит, аналитика
+                 └─ ИИ: YandexGPT · GigaChat · Claude · Ollama/vLLM
 ```
 
-Всё построено на проверенных open-source компонентах:
+Роботы сами забирают задачи (pull): входящие порты на рабочих машинах открывать не нужно.
 
-| Компонент | Роль | Лицензия |
+| Слой | Технологии (open source) | Лицензия |
 |---|---|---|
-| [FastAPI](https://fastapi.tiangolo.com) + [Uvicorn](https://www.uvicorn.org) | HTTP API оркестратора | MIT / BSD-3 |
-| [SQLAlchemy 2](https://www.sqlalchemy.org) | хранение процессов, запусков, журналов (SQLite, PostgreSQL) | MIT |
-| [Pydantic 2](https://docs.pydantic.dev) | валидация API | MIT |
-| [croniter](https://github.com/kiorky/croniter) | расписания cron | MIT |
-| [Playwright](https://playwright.dev/python/) | управление браузерами Chromium / Firefox / WebKit | Apache-2.0 |
-| [openpyxl](https://openpyxl.readthedocs.io) | чтение и запись `.xlsx` без Excel | MIT |
-| [HTTPX](https://www.python-httpx.org) | связь робота с оркестратором | BSD-3 |
-| [React 18](https://react.dev) + [React Flow](https://reactflow.dev) | веб-интерфейс и редактор графа | MIT |
-| [Vite](https://vitejs.dev) + [TypeScript](https://www.typescriptlang.org) | сборка фронтенда | MIT / Apache-2.0 |
+| Интерфейс | React 18, React Flow (@xyflow/react), Vite, TypeScript | MIT |
+| API и оркестратор | FastAPI, Uvicorn, Pydantic, SQLAlchemy 2, croniter | MIT / BSD |
+| База данных | PostgreSQL или SQLite | PostgreSQL / Public Domain |
+| Web-автоматизация | Playwright (Chromium, Firefox, WebKit) | Apache 2.0 |
+| Excel и документы | openpyxl, pypdf, pypdfium2, python-docx | MIT / BSD / Apache 2.0 |
+| OCR и зрение | Tesseract, OpenCV, Pillow, PyAutoGUI | Apache 2.0 / Apache 2.0 / MIT-CMU / BSD |
+| Desktop | pywinauto (Windows UIA), JXA / Accessibility (macOS) | BSD |
+| Безопасность | cryptography (Fernet), ldap3 | Apache 2.0 / LGPL |
+| ИИ | anthropic SDK; YandexGPT, GigaChat, OpenAI-совместимые API через httpx | MIT / BSD |
 
-```
-frontend/       веб-интерфейс: дизайнер, запуски, роботы, расписания
-orchestrator/   HTTP API: процессы, очередь, журналы, cron
-rpa_robot/      агент робота (pull-модель: робот сам забирает задачи — не нужен входящий доступ к роботу)
-rpa_engine/     движок исполнения графа + блоки Логика / Web / Excel / Файлы
-tests/          тесты движка и сквозные тесты API + робот
-```
+## 🔭 Дальше
 
-**Новый блок** — одна функция с декоратором `@block(...)` в `rpa_engine/blocks/*.py`; дизайнер подхватит её автоматически через `/api/blocks`.
-
-## 🔭 Что дальше
-
-Архитектура (реестр блоков + граф + pull-роботы) позволяет наращивать платформу без переделки ядра. Направления развития:
-
-- **Vibe-автоматизация** — процесс по текстовому описанию: «каждое утро скачай выписки из банка и разложи по папкам» → готовая схема в дизайнере (LLM).
-- **AI-блоки** — разбор счетов, договоров и писем, извлечение полей из PDF и сканов, классификация обращений.
-- **Рекордер** — запись действий пользователя в браузере и превращение их в блоки.
-- **Desktop-блоки** — Windows UI Automation и macOS Accessibility с селекторами элементов окон.
-- **OCR и компьютерное зрение** — работа с интерфейсами, где нет доступных элементов (RDP, Citrix).
-- **Почта и мессенджеры** — IMAP/SMTP, Exchange, уведомления в Telegram о сбоях и итогах.
-- **Интеграции** — 1С (OData/HTTP-сервисы), REST/SOAP-блоки, базы данных.
-- **Хранилище секретов** — пароли порталов отдельно от процессов, интеграция с Vault.
-- **Пользователи и роли** — RBAC, SSO / LDAP / Active Directory, журнал действий.
-- **Очереди данных** — транзакционная обработка элементов с повторами и SLA.
-- **Аналитика и ROI** — сэкономленные часы, успешность процессов, загрузка роботов.
-- **Docker / Helm**, Git-версионирование процессов, маркетплейс блоков.
-
-Хотите что-то из этого раньше — создайте issue или пришлите pull request.
+Рекордер для окон Windows · SSO через OIDC/SAML · Helm-чарт для Kubernetes · двусторонняя синхронизация с Git ·
+маркетплейс блоков · AI-агент, который сам чинит упавший селектор · Exchange EWS · обработка длинных аудиозаписей.
+Нужно раньше — создайте issue или пришлите pull request.
 
 ## Разработка
 
 ```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python -m pytest -q tests          # тесты
-cd frontend && npm install && npm run dev    # UI на :5173, /api проксируется на :8000
-npm run build                                # сборка UI в frontend/dist — его раздаёт оркестратор
+pip install -r requirements.txt -r requirements-extra.txt
+pytest                                   # 40+ тестов: движок, оркестратор, OCR, банковские утилиты, S3, очереди
+cd frontend && npm install && npm run dev
+python tools/build_templates.py          # пересобрать галерею шаблонов
 ```
+
+Новый блок — функция с декоратором `@block(...)` в `rpa_engine/blocks/`: он сразу появится в палитре дизайнера,
+в генераторе процессов по описанию и в API.
+
+## Автор
+
+**Влад Кондратьев** — [github.com/vladkondratyev](https://github.com/vladkondratyev) · сайт проекта [rpa.qso-log.ru](https://rpa.qso-log.ru)
+
+Маскот проекта — робот **Вайби**: его глаза — два блока процесса, соединённые ребром, а улыбка — ветка графа.
 
 ## Лицензия
 
-[MIT](LICENSE) — используйте, изменяйте и встраивайте свободно, в том числе в коммерческих проектах.
+[MIT](LICENSE) — используйте, меняйте и встраивайте в коммерческие продукты свободно.

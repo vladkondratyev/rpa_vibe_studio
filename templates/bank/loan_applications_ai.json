@@ -1,0 +1,235 @@
+{
+  "name": "Кредитные заявки: извлечение данных ИИ",
+  "category": "Банк",
+  "description": "Разбирает PDF-анкеты заёмщиков из папки: ИИ извлекает ФИО, ИНН, доход, сумму и срок, робот проверяет ИНН, записывает заявку в базу скоринга и уведомляет кредитный отдел.",
+  "minutes_saved": 20,
+  "tags": [
+    "ИИ",
+    "кредиты",
+    "PDF",
+    "SQL"
+  ],
+  "requires": [
+    "Подключение в «Модели ИИ»"
+  ],
+  "definition": {
+    "variables": [
+      {
+        "name": "папка",
+        "default": "D:\\Кредиты\\анкеты"
+      },
+      {
+        "name": "чат",
+        "default": "-100123"
+      }
+    ],
+    "outputs": [],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "ls",
+        "type": "files.list",
+        "label": "Новые анкеты",
+        "params": {
+          "folder": "{{ папка }}",
+          "pattern": "*.pdf",
+          "result": "анкеты"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "loop",
+        "type": "core.for_each",
+        "label": "По каждой анкете",
+        "params": {
+          "collection": "анкеты",
+          "item": "анкета"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "txt",
+        "type": "docs.pdf_text",
+        "label": "Текст PDF",
+        "params": {
+          "path": "{{ анкета }}",
+          "result": "текст"
+        },
+        "position": {
+          "x": 700,
+          "y": 210
+        }
+      },
+      {
+        "id": "ai",
+        "type": "ai.extract",
+        "label": "Извлечь поля (ИИ)",
+        "params": {
+          "text": "{{ текст }}",
+          "files": "",
+          "fields": "фио: ФИО заёмщика\nинн: ИНН заёмщика\nдоход: ежемесячный доход, руб\nсумма: запрошенная сумма кредита, руб\nсрок: срок кредита, месяцев\nтелефон: контактный телефон",
+          "result": "заявка"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "inn",
+        "type": "bank.validate",
+        "label": "ИНН корректен?",
+        "params": {
+          "kind": "inn",
+          "value": "{{ заявка['инн'] }}"
+        },
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      },
+      {
+        "id": "db",
+        "type": "db.execute",
+        "label": "В базу скоринга",
+        "params": {
+          "connection": "postgresql+psycopg://rpa:{password}@scoring/db",
+          "password": "scoring_db_password",
+          "sql": "INSERT INTO applications (fio, inn, income, amount, term, phone, source) VALUES (:фио, :инн, :доход, :сумма, :срок, :телефон, 'rpa')",
+          "params": "{{ заявка }}"
+        },
+        "position": {
+          "x": 1690,
+          "y": 210
+        }
+      },
+      {
+        "id": "mv",
+        "type": "files.move",
+        "label": "В архив",
+        "params": {
+          "source": "{{ анкета }}",
+          "target": "{{ папка }}\\обработано"
+        },
+        "position": {
+          "x": 2020,
+          "y": 210
+        }
+      },
+      {
+        "id": "bad",
+        "type": "queue.add",
+        "label": "На проверку менеджеру",
+        "params": {
+          "queue": "Заявки: ручная проверка",
+          "data": "{{ dict(заявка, файл=анкета) }}",
+          "reference": "{{ анкета }}"
+        },
+        "position": {
+          "x": 1360,
+          "y": 380
+        }
+      },
+      {
+        "id": "note",
+        "type": "notify.telegram",
+        "label": "Сводка кредитному отделу",
+        "params": {
+          "token": "telegram_bot",
+          "chat_id": "{{ чат }}",
+          "text": "Обработано анкет: {{ len(анкеты) }}"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "ls"
+      },
+      {
+        "id": "e1",
+        "source": "ls",
+        "sourceHandle": "out",
+        "target": "loop"
+      },
+      {
+        "id": "e2",
+        "source": "loop",
+        "sourceHandle": "body",
+        "target": "txt"
+      },
+      {
+        "id": "e3",
+        "source": "txt",
+        "sourceHandle": "out",
+        "target": "ai"
+      },
+      {
+        "id": "e4",
+        "source": "ai",
+        "sourceHandle": "out",
+        "target": "inn"
+      },
+      {
+        "id": "e5",
+        "source": "inn",
+        "sourceHandle": "valid",
+        "target": "db"
+      },
+      {
+        "id": "e6",
+        "source": "inn",
+        "sourceHandle": "invalid",
+        "target": "bad"
+      },
+      {
+        "id": "e7",
+        "source": "db",
+        "sourceHandle": "out",
+        "target": "mv"
+      },
+      {
+        "id": "e8",
+        "source": "loop",
+        "sourceHandle": "done",
+        "target": "note"
+      },
+      {
+        "id": "e9",
+        "source": "note",
+        "sourceHandle": "out",
+        "target": "end"
+      }
+    ]
+  }
+}

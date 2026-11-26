@@ -9,3 +9,4 @@ frontend/dist/
 dist/
 .DS_Store
 .env
+rpa_secret.key

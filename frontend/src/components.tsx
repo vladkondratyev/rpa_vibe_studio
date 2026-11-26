@@ -145,3 +145,29 @@ export function RunDialog({
     </div>
   );
 }
+
+/** Маскот «Вайби»: робот, у которого глаза — блоки процесса, соединённые ребром, а улыбка — ветка графа. */
+export function Logo({ size = 32 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 64 64" role="img" aria-label="RPA Vibe Studio" className="logo">
+      <defs>
+        <linearGradient id="vibe-head" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#6366f1" />
+          <stop offset="1" stopColor="#a855f7" />
+        </linearGradient>
+      </defs>
+      <path d="M32 15V8" stroke="#a5b4fc" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="32" cy="6.5" r="4" fill="#22d3ee" />
+      <rect x="3" y="29" width="6" height="13" rx="3" fill="#818cf8" />
+      <rect x="55" y="29" width="6" height="13" rx="3" fill="#818cf8" />
+      <rect x="7" y="14" width="50" height="42" rx="15" fill="url(#vibe-head)" />
+      <rect x="13" y="21" width="38" height="28" rx="10" fill="#0f172a" />
+      <rect x="19" y="27" width="9" height="9" rx="2.5" fill="#22d3ee" />
+      <rect x="36" y="27" width="9" height="9" rx="2.5" fill="#22d3ee" />
+      <path d="M28 31.5h8" stroke="#67e8f9" strokeWidth="2" strokeLinecap="round" />
+      <path d="M22 41c6 5 14 5 20 0" stroke="#67e8f9" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+      <circle cx="22" cy="41" r="2" fill="#f0abfc" />
+      <circle cx="42" cy="41" r="2" fill="#f0abfc" />
+    </svg>
+  );
+}

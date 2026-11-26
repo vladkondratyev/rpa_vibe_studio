@@ -1,0 +1,183 @@
+{
+  "name": "Обращения клиентов: классификация и задачи",
+  "category": "Банк",
+  "description": "Читает почту контакт-центра, ИИ определяет тему обращения (YandexGPT/GigaChat/Claude), робот создаёт задачу в Яндекс Трекере нужной очереди и отправляет клиенту подтверждение с номером.",
+  "minutes_saved": 8,
+  "tags": [
+    "ИИ",
+    "контакт-центр",
+    "Яндекс Трекер",
+    "почта"
+  ],
+  "requires": [
+    "Подключение в «Модели ИИ»"
+  ],
+  "definition": {
+    "variables": [
+      {
+        "name": "организация",
+        "default": "bpf..."
+      }
+    ],
+    "outputs": [],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "mail",
+        "type": "email.read",
+        "label": "Новые обращения",
+        "params": {
+          "host": "imap.yandex.ru",
+          "username": "support@bank.ru",
+          "password": "imap_password",
+          "criteria": "UNSEEN",
+          "limit": 50,
+          "result": "письма"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "loop",
+        "type": "core.for_each",
+        "label": "По каждому письму",
+        "params": {
+          "collection": "письма",
+          "item": "письмо"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "cls",
+        "type": "ai.classify",
+        "label": "Тема обращения",
+        "params": {
+          "text": "{{ письмо['subject'] }}\n{{ письмо['text'] }}",
+          "categories": "блокировка карты\nоспаривание операции\nзапрос выписки или справки\nкредиты и ипотека\nжалоба на обслуживание\nдругое",
+          "result": "тема"
+        },
+        "position": {
+          "x": 700,
+          "y": 210
+        }
+      },
+      {
+        "id": "map",
+        "type": "core.set_variable",
+        "label": "Очередь Трекера",
+        "params": {
+          "name": "очередь",
+          "value": "{{ {'блокировка карты': 'CARDS', 'оспаривание операции': 'DISPUTE', 'кредиты и ипотека': 'LOANS'}.get(тема, 'SUPPORT') }}"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "task",
+        "type": "yandex.tracker_issue",
+        "label": "Задача в Трекер",
+        "params": {
+          "token": "yandex_oauth",
+          "org_id": "{{ организация }}",
+          "queue": "{{ очередь }}",
+          "summary": "[{{ тема }}] {{ письмо['subject'] }}",
+          "description": "От: {{ письмо['from'] }}\n\n{{ письмо['text'][:5000] }}",
+          "result": "задача"
+        },
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      },
+      {
+        "id": "reply",
+        "type": "email.send",
+        "label": "Подтверждение клиенту",
+        "params": {
+          "host": "smtp.yandex.ru",
+          "port": 465,
+          "security": "ssl",
+          "username": "support@bank.ru",
+          "password": "smtp_password",
+          "sender": "support@bank.ru",
+          "to": "{{ письмо['from'] }}",
+          "subject": "Обращение {{ задача }} зарегистрировано",
+          "body": "Здравствуйте!\n\nВаше обращение зарегистрировано под номером {{ задача }} (тема: {{ тема }}). Мы ответим в течение одного рабочего дня.\n\nБанк"
+        },
+        "position": {
+          "x": 1690,
+          "y": 210
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "mail"
+      },
+      {
+        "id": "e1",
+        "source": "mail",
+        "sourceHandle": "out",
+        "target": "loop"
+      },
+      {
+        "id": "e2",
+        "source": "loop",
+        "sourceHandle": "body",
+        "target": "cls"
+      },
+      {
+        "id": "e3",
+        "source": "cls",
+        "sourceHandle": "out",
+        "target": "map"
+      },
+      {
+        "id": "e4",
+        "source": "map",
+        "sourceHandle": "out",
+        "target": "task"
+      },
+      {
+        "id": "e5",
+        "source": "task",
+        "sourceHandle": "out",
+        "target": "reply"
+      },
+      {
+        "id": "e6",
+        "source": "loop",
+        "sourceHandle": "done",
+        "target": "end"
+      }
+    ]
+  }
+}

@@ -26,6 +26,10 @@ class ProcessError(Exception):
     """Ошибка процесса, поднятая блоком «Ошибка» или движком."""
 
 
+class SecretNotFound(KeyError):
+    pass
+
+
 def _expr_globals() -> Dict[str, Any]:
     # Выражения и Python-блоки выполняются с полным доступом к Python:
     # процессы пишут доверенные инженеры, как и вставки кода в Sherpa.
@@ -47,9 +51,23 @@ class Context:
         variables: Optional[Dict[str, Any]] = None,
         log: Optional[LogFn] = None,
         artifact: Optional[ArtifactFn] = None,
+        secrets: Optional[Dict[str, str]] = None,
+        orchestrator: Any = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.vars: Dict[str, Any] = dict(variables or {})
         self._log = log
+        # Секреты из хранилища оркестратора: доступны как secret('имя'),
+        # значения вырезаются из журнала.
+        self.secrets: Dict[str, str] = dict(secrets or {})
+        # Клиент оркестратора (очереди, запуск процессов); None при локальном запуске.
+        self.orchestrator = orchestrator
+        # Настройки платформы, которые робот получает с задачей: подключения
+        # к моделям ИИ ("ai"), шаблоны документов OCR ("ocr_templates").
+        self.config: Dict[str, Any] = dict(config or {})
+        for conn in (self.config.get("ai") or {}).values():
+            if conn.get("api_key"):
+                self.secrets.setdefault(f"__ai_{conn.get('name')}", conn["api_key"])
         self._artifact = artifact
         self.resources: Dict[str, Any] = {}
         self._cleanups: List[Callable[[], None]] = []
@@ -61,7 +79,45 @@ class Context:
     # ---------- логирование и артефакты ----------
     def log(self, message: Any, level: str = "info") -> None:
         if self._log:
-            self._log(level, str(message), self.current_node)
+            self._log(level, self.mask(str(message)), self.current_node)
+
+    def mask(self, text: str) -> str:
+        for value in self.secrets.values():
+            if value and len(value) >= 3:
+                text = text.replace(value, "***")
+        return text
+
+    def secret(self, name: str) -> str:
+        """Значение секрета: из хранилища оркестратора, а при локальном
+        запуске — из переменной окружения RPA_SECRET_<ИМЯ>."""
+        if name in self.secrets:
+            return self.secrets[name]
+        env = os.environ.get("RPA_SECRET_" + re.sub(r"\W", "_", name).upper())
+        if env is not None:
+            self.secrets[name] = env
+            return env
+        raise SecretNotFound(f"Секрет «{name}» не найден в хранилище")
+
+    def ai_connection(self, name: str = "") -> Dict[str, Any]:
+        conns = self.config.get("ai") or {}
+        if name:
+            if name in conns:
+                return conns[name]
+            raise KeyError(f"Подключение к модели ИИ «{name}» не настроено (раздел «Модели ИИ»)")
+        default = next((c for c in conns.values() if c.get("is_default")), None) or next(iter(conns.values()), None)
+        if default:
+            return default
+        from .llm import env_connection
+
+        env = env_connection()
+        if env:
+            return env
+        raise KeyError("Нет ни одного подключения к модели ИИ: добавьте его в разделе «Модели ИИ»")
+
+    def need_orchestrator(self) -> Any:
+        if self.orchestrator is None:
+            raise RuntimeError("Блок работает только при запуске через оркестратор (очереди, процессы)")
+        return self.orchestrator
 
     def add_artifact(self, name: str, data: bytes, content_type: str = "image/png") -> None:
         if self._artifact:
@@ -89,6 +145,7 @@ class Context:
         if not expression:
             return None
         g = _expr_globals()
+        g["secret"] = self.secret
         return eval(compile(expression, "<выражение>", "eval"), g, dict(self.vars))
 
     def render(self, value: Any) -> Any:
@@ -108,7 +165,7 @@ class Context:
         """Выполняет Python-вставку. Переменные процесса доступны как обычные
         имена; новые и изменённые имена записываются обратно в переменные."""
         helpers = _expr_globals()
-        helpers.update({"log": self.log, "ctx": self, "vars": self.vars})
+        helpers.update({"log": self.log, "ctx": self, "vars": self.vars, "secret": self.secret})
         namespace: Dict[str, Any] = dict(helpers)
         namespace.update(self.vars)
         exec(compile(code, "<python-блок>", "exec"), namespace)

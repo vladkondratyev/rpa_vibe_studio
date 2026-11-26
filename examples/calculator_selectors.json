@@ -1,0 +1,203 @@
+{
+  "variables": [],
+  "outputs": [
+    "result"
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "core.start",
+      "params": {},
+      "position": {
+        "x": 60,
+        "y": 60
+      }
+    },
+    {
+      "id": "launch",
+      "type": "desktop.launch",
+      "label": "Открыть Калькулятор",
+      "params": {
+        "app": "Calculator",
+        "wait": 1
+      },
+      "position": {
+        "x": 330,
+        "y": 60
+      }
+    },
+    {
+      "id": "clear",
+      "type": "desktop.click",
+      "label": "Кнопка AllClear",
+      "params": {
+        "selector": "app=Calculator; role=button; id=AllClear",
+        "timeout": 10
+      },
+      "position": {
+        "x": 600,
+        "y": 60
+      }
+    },
+    {
+      "id": "d1",
+      "type": "desktop.click",
+      "label": "Кнопка Seven",
+      "params": {
+        "selector": "app=Calculator; role=button; id=Seven",
+        "timeout": 10
+      },
+      "position": {
+        "x": 870,
+        "y": 60
+      }
+    },
+    {
+      "id": "d2",
+      "type": "desktop.click",
+      "label": "Кнопка Eight",
+      "params": {
+        "selector": "app=Calculator; role=button; id=Eight",
+        "timeout": 10
+      },
+      "position": {
+        "x": 1140,
+        "y": 60
+      }
+    },
+    {
+      "id": "op",
+      "type": "desktop.click",
+      "label": "Кнопка Multiply",
+      "params": {
+        "selector": "app=Calculator; role=button; id=Multiply",
+        "timeout": 10
+      },
+      "position": {
+        "x": 60,
+        "y": 210
+      }
+    },
+    {
+      "id": "d3",
+      "type": "desktop.click",
+      "label": "Кнопка Nine",
+      "params": {
+        "selector": "app=Calculator; role=button; id=Nine",
+        "timeout": 10
+      },
+      "position": {
+        "x": 330,
+        "y": 210
+      }
+    },
+    {
+      "id": "eq",
+      "type": "desktop.click",
+      "label": "Кнопка Equals",
+      "params": {
+        "selector": "app=Calculator; role=button; id=Equals",
+        "timeout": 10
+      },
+      "position": {
+        "x": 600,
+        "y": 210
+      }
+    },
+    {
+      "id": "read",
+      "type": "desktop.get_text",
+      "label": "Прочитать результат",
+      "params": {
+        "selector": "app=Calculator; role=text; index=1",
+        "result": "result"
+      },
+      "position": {
+        "x": 870,
+        "y": 210
+      }
+    },
+    {
+      "id": "log",
+      "type": "core.log",
+      "params": {
+        "message": "78 × 9 = {{ result }}"
+      },
+      "position": {
+        "x": 1140,
+        "y": 210
+      }
+    },
+    {
+      "id": "end",
+      "type": "core.end",
+      "params": {},
+      "position": {
+        "x": 60,
+        "y": 360
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "launch"
+    },
+    {
+      "id": "e1",
+      "source": "launch",
+      "sourceHandle": "out",
+      "target": "clear"
+    },
+    {
+      "id": "e2",
+      "source": "clear",
+      "sourceHandle": "out",
+      "target": "d1"
+    },
+    {
+      "id": "e3",
+      "source": "d1",
+      "sourceHandle": "out",
+      "target": "d2"
+    },
+    {
+      "id": "e4",
+      "source": "d2",
+      "sourceHandle": "out",
+      "target": "op"
+    },
+    {
+      "id": "e5",
+      "source": "op",
+      "sourceHandle": "out",
+      "target": "d3"
+    },
+    {
+      "id": "e6",
+      "source": "d3",
+      "sourceHandle": "out",
+      "target": "eq"
+    },
+    {
+      "id": "e7",
+      "source": "eq",
+      "sourceHandle": "out",
+      "target": "read"
+    },
+    {
+      "id": "e8",
+      "source": "read",
+      "sourceHandle": "out",
+      "target": "log"
+    },
+    {
+      "id": "e9",
+      "source": "log",
+      "sourceHandle": "out",
+      "target": "end"
+    }
+  ]
+}

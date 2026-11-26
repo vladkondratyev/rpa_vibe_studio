@@ -15,7 +15,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { api, BlockDef, Definition, ParamDef, Process } from "../api";
+import { api, BlockDef, Definition, fetchBlob, fmtTime, ParamDef, Process } from "../api";
 import { navigate } from "../App";
 import { parseValue, RunDialog, showValue } from "../components";
 
@@ -29,6 +29,19 @@ const CATEGORY_COLORS: Record<string, string> = {
   Web: "#0ea5e9",
   Excel: "#16a34a",
   Файлы: "#d97706",
+  Desktop: "#7c3aed",
+  "Vision · Citrix": "#db2777",
+  "OCR · Документы": "#0d9488",
+  ИИ: "#9333ea",
+  Банк: "#b45309",
+  Данные: "#475569",
+  Интеграции: "#2563eb",
+  Почта: "#0891b2",
+  Уведомления: "#ca8a04",
+  Очереди: "#e11d48",
+  Документы: "#059669",
+  Яндекс: "#dc2626",
+  "Яндекс · Хранилища": "#ea580c",
 };
 
 let idCounter = 0;
@@ -143,6 +156,10 @@ function DesignerInner({ processId, focusNode }: { processId: number; focusNode:
   const [errors, setErrors] = useState<string[]>([]);
   const [running, setRunning] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [secretNames, setSecretNames] = useState<string[]>([]);
+  useEffect(() => {
+    api<{ name: string }[]>("/api/secrets").then((l) => setSecretNames(l.map((x) => x.name))).catch(() => {});
+  }, []);
   const flow = useReactFlow();
   const wrapper = useRef<HTMLDivElement>(null);
   const clipboard = useRef<{ nodes: BlockNode[]; edges: Edge[] } | null>(null);
@@ -225,7 +242,7 @@ function DesignerInner({ processId, focusNode }: { processId: number; focusNode:
     try {
       const p = await api<Process>(`/api/processes/${processId}`, {
         method: "PUT",
-        json: { name: proc.name, description: proc.description, definition: definition() },
+        json: { name: proc.name, description: proc.description, minutes_saved: proc.minutes_saved ?? 0, definition: definition() },
       });
       setProc({ ...p });
       setDirty(false);
@@ -391,6 +408,7 @@ function DesignerInner({ processId, focusNode }: { processId: number; focusNode:
           </aside>
         </div>
         <datalist id="known-vars">{knownVars.map((v) => <option key={v} value={v} />)}</datalist>
+        <datalist id="known-secrets">{secretNames.map((v) => <option key={v} value={v} />)}</datalist>
         {running && (
           <RunDialog
             processId={processId}
@@ -525,6 +543,9 @@ function ParamField({ p, value, onChange }: { p: ParamDef; value: unknown; onCha
         />
       );
       break;
+    case "secret":
+      input = <input list="known-secrets" placeholder="имя секрета" value={String(v)} onChange={(e) => onChange(e.target.value.trim())} />;
+      break;
     case "variable":
       input = <input list="known-vars" value={String(v)} onChange={(e) => onChange(e.target.value.replace(/[^\p{L}\p{N}_]/gu, ""))} />;
       break;
@@ -560,6 +581,11 @@ function ProcessSettings({ proc, meta, onChange }: { proc: Process; meta: Defini
         <span>Описание</span>
         <textarea rows={3} value={proc.description} onChange={(e) => onChange({ ...proc, description: e.target.value }, meta)} />
       </label>
+      <label className="field">
+        <span>Экономия ручного труда за запуск, минут</span>
+        <input inputMode="numeric" value={String(proc.minutes_saved ?? 0)} onChange={(e) => onChange({ ...proc, minutes_saved: Number(e.target.value.replace(/\D/g, "")) || 0 }, meta)} />
+        <small className="muted">Для аналитики: сколько времени сотрудник тратил на это вручную.</small>
+      </label>
       <h4>Входные переменные</h4>
       <p className="muted small">Значения по умолчанию; при запуске их можно переопределить. Значение — текст или JSON (числа, списки).</p>
       {vars.map((v, i) => (
@@ -579,12 +605,53 @@ function ProcessSettings({ proc, meta, onChange }: { proc: Process; meta: Defini
         />
         <small className="muted">Их значения попадут в итог запуска.</small>
       </label>
+      <Versions proc={proc} />
       <h4>Подсказки</h4>
       <ul className="muted small hints">
+        <li>Пароли и ключи — в разделе «Секреты»: <code>{"{{ secret('имя') }}"}</code>, в журнале они скрываются.</li>
         <li>В любом текстовом параметре: <code>{"{{ выражение }}"}</code>, например <code>{"{{ row['Сумма'] * 2 }}"}</code>.</li>
         <li>Выход «Тело» цикла можно не замыкать: в конце ветки выполнение вернётся в цикл.</li>
         <li>Ctrl+S — сохранить, Ctrl+C / Ctrl+V — копировать блоки, Delete — удалить.</li>
       </ul>
     </div>
+  );
+}
+
+type VersionInfo = { version: number; author: string; created_at: string; blocks: number };
+
+function Versions({ proc }: { proc: Process }) {
+  const [list, setList] = useState<VersionInfo[] | null>(null);
+  const load = () => api<VersionInfo[]>(`/api/processes/${proc.id}/versions`).then(setList).catch(() => setList([]));
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proc.version]);
+  const restore = async (v: number) => {
+    if (!confirm(`Вернуть процесс к версии ${v}? Текущая версия сохранится в истории.`)) return;
+    await api(`/api/processes/${proc.id}/versions/${v}/restore`, { method: "POST" });
+    window.location.reload();
+  };
+  const exportJson = async () => {
+    const url = await fetchBlob(`/api/processes/${proc.id}/export`);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${proc.name}.json`;
+    a.click();
+  };
+  return (
+    <>
+      <h4>Версии</h4>
+      <div className="versions">
+        {(list || []).slice(0, 8).map((v) => (
+          <div key={v.version} className="row small">
+            <b>v{v.version}</b>
+            <span className="muted">{fmtTime(v.created_at)} · {v.author || "—"}</span>
+            <span className="spacer" />
+            {v.version !== proc.version && <button className="link small" onClick={() => restore(v.version)}>вернуть</button>}
+          </div>
+        ))}
+      </div>
+      <button className="secondary small" onClick={exportJson}>⬇ Экспорт JSON</button>
+    </>
   );
 }

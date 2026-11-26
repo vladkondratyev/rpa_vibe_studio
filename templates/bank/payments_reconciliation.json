@@ -1,0 +1,277 @@
+{
+  "name": "Сверка платежей: выписка банка ↔ реестр 1С",
+  "category": "Банк",
+  "description": "Сверяет операции из выписки клиент-банка с реестром оплат из 1С по номеру документа и сумме. Расхождения — в Excel и письмом бухгалтеру.",
+  "minutes_saved": 90,
+  "tags": [
+    "сверка",
+    "1С",
+    "почта"
+  ],
+  "requires": [],
+  "definition": {
+    "variables": [
+      {
+        "name": "выписка",
+        "default": "D:\\Обмен\\kl_to_1c.txt"
+      },
+      {
+        "name": "odata_1c",
+        "default": "http://1c-srv/buh/odata/standard.odata"
+      },
+      {
+        "name": "отчёт",
+        "default": "D:\\Сверки\\сверка.xlsx"
+      },
+      {
+        "name": "бухгалтер",
+        "default": "buh@bank.ru"
+      }
+    ],
+    "outputs": [
+      "сверка"
+    ],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "st",
+        "type": "bank.read_1c",
+        "label": "Выписка банка",
+        "params": {
+          "path": "{{ выписка }}",
+          "result": "выписка"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "reg",
+        "type": "onec.query",
+        "label": "Реестр оплат из 1С",
+        "params": {
+          "base_url": "{{ odata_1c }}",
+          "username": "robot",
+          "password": "onec_password",
+          "entity": "Document_ПлатежноеПоручениеИсходящее",
+          "filter": "Date ge datetime'{{ (today() - datetime.timedelta(days=1)).isoformat() }}T00:00:00'",
+          "select": "Number,Date,СуммаДокумента",
+          "result": "реестр"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "cmp",
+        "type": "table.compare",
+        "label": "Сверить",
+        "params": {
+          "left": "выписка['documents']",
+          "right": "реестр",
+          "key": "Номер|Number",
+          "value": "Сумма|СуммаДокумента",
+          "tolerance": 0.01,
+          "result": "сверка"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "if",
+        "type": "core.if",
+        "label": "Есть расхождения?",
+        "params": {
+          "condition": "сверка['mismatched'] or сверка['only_left'] or сверка['only_right']"
+        },
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      },
+      {
+        "id": "book",
+        "type": "excel.open",
+        "label": "Отчёт о расхождениях",
+        "params": {
+          "path": "{{ отчёт }}",
+          "book": "сверка",
+          "create": true
+        },
+        "position": {
+          "x": 370,
+          "y": 210
+        }
+      },
+      {
+        "id": "w1",
+        "type": "excel.write_table",
+        "label": "Расхождения сумм",
+        "params": {
+          "book": "сверка",
+          "sheet": "Суммы",
+          "rows": "[{'Номер': m['key'], 'Банк': m['left']['Сумма'], '1С': m['right']['СуммаДокумента'], 'Разница': m['difference']} for m in сверка['mismatched']]"
+        },
+        "position": {
+          "x": 700,
+          "y": 210
+        }
+      },
+      {
+        "id": "w2",
+        "type": "excel.write_table",
+        "label": "Нет в 1С",
+        "params": {
+          "book": "сверка",
+          "sheet": "Нет в 1С",
+          "rows": "сверка['only_left']"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "save",
+        "type": "excel.save",
+        "label": "Сохранить",
+        "params": {
+          "book": "сверка"
+        },
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      },
+      {
+        "id": "mail",
+        "type": "email.send",
+        "label": "Письмо бухгалтеру",
+        "params": {
+          "host": "smtp.yandex.ru",
+          "port": 465,
+          "security": "ssl",
+          "username": "robot@bank.ru",
+          "password": "smtp_password",
+          "sender": "robot@bank.ru",
+          "to": "{{ бухгалтер }}",
+          "subject": "Расхождения сверки за {{ today().strftime('%d.%m.%Y') }}",
+          "body": "Расхождений сумм: {{ len(сверка['mismatched']) }}, нет в 1С: {{ len(сверка['only_left']) }}, нет в банке: {{ len(сверка['only_right']) }}. Отчёт во вложении.",
+          "attachments": "{{ отчёт }}"
+        },
+        "position": {
+          "x": 1690,
+          "y": 210
+        }
+      },
+      {
+        "id": "ok",
+        "type": "core.log",
+        "label": "Всё сошлось",
+        "params": {
+          "message": "Сверка без расхождений: {{ len(сверка['matched']) }} документов"
+        },
+        "position": {
+          "x": 1360,
+          "y": 380
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 2020,
+          "y": 210
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "st"
+      },
+      {
+        "id": "e1",
+        "source": "st",
+        "sourceHandle": "out",
+        "target": "reg"
+      },
+      {
+        "id": "e2",
+        "source": "reg",
+        "sourceHandle": "out",
+        "target": "cmp"
+      },
+      {
+        "id": "e3",
+        "source": "cmp",
+        "sourceHandle": "out",
+        "target": "if"
+      },
+      {
+        "id": "e4",
+        "source": "if",
+        "sourceHandle": "true",
+        "target": "book"
+      },
+      {
+        "id": "e5",
+        "source": "book",
+        "sourceHandle": "out",
+        "target": "w1"
+      },
+      {
+        "id": "e6",
+        "source": "w1",
+        "sourceHandle": "out",
+        "target": "w2"
+      },
+      {
+        "id": "e7",
+        "source": "w2",
+        "sourceHandle": "out",
+        "target": "save"
+      },
+      {
+        "id": "e8",
+        "source": "save",
+        "sourceHandle": "out",
+        "target": "mail"
+      },
+      {
+        "id": "e9",
+        "source": "mail",
+        "sourceHandle": "out",
+        "target": "end"
+      },
+      {
+        "id": "e10",
+        "source": "if",
+        "sourceHandle": "false",
+        "target": "ok"
+      },
+      {
+        "id": "e11",
+        "source": "ok",
+        "sourceHandle": "out",
+        "target": "end"
+      }
+    ]
+  }
+}

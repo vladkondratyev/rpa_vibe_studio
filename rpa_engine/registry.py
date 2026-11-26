@@ -20,6 +20,7 @@ PARAM_KINDS = {
     "boolean",
     "select",    # выбор из options
     "variable",  # имя переменной, куда записать результат
+    "secret",    # имя секрета из хранилища (значение подставляется на роботе)
 }
 
 
@@ -120,4 +121,7 @@ def _ensure_loaded() -> None:
     if _loaded:
         return
     _loaded = True
-    from .blocks import core, excel, files, web  # noqa: F401
+    from .blocks import (  # noqa: F401
+        ai, bank, core, data, desktop, docs, email_, excel, files, http, notify, ocr_docs, orchestration, storage,
+        vision, web, yandex,
+    )

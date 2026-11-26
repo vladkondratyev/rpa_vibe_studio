@@ -1,0 +1,392 @@
+{
+  "name": "Ввод платёжек в АБС через Citrix",
+  "category": "Банк",
+  "description": "Робот-исполнитель очереди: берёт платёж, в сессии Citrix открывает форму АБС, находит поля по надписям (OCR) и образцам кнопок, вводит реквизиты, сохраняет скриншот и закрывает элемент. При сбое элемент вернётся в очередь.",
+  "minutes_saved": 6,
+  "tags": [
+    "Citrix",
+    "АБС",
+    "Vision",
+    "очереди"
+  ],
+  "requires": [
+    "Tesseract",
+    "pyautogui",
+    "OpenCV"
+  ],
+  "definition": {
+    "variables": [],
+    "outputs": [],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "act",
+        "type": "desktop.activate",
+        "label": "Окно Citrix",
+        "params": {
+          "window": "Citrix Workspace|АБС"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "next",
+        "type": "queue.next",
+        "label": "Следующий платёж",
+        "params": {
+          "queue": "Платежи в АБС",
+          "item": "item"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "new",
+        "type": "vision.click_image",
+        "label": "Кнопка «Новый документ»",
+        "params": {
+          "image": "образцы/новый_документ.png",
+          "confidence": 0.85,
+          "timeout": 20
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "w1",
+        "type": "vision.wait_text",
+        "label": "Форма открылась",
+        "params": {
+          "text": "Платёжное поручение",
+          "timeout": 30
+        },
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      },
+      {
+        "id": "acc",
+        "type": "vision.click_text",
+        "label": "Поле «Счёт получателя»",
+        "params": {
+          "text": "Счёт получателя",
+          "offset": "220,0"
+        },
+        "position": {
+          "x": 1690,
+          "y": 40
+        }
+      },
+      {
+        "id": "t1",
+        "type": "vision.type",
+        "label": "Ввести счёт",
+        "params": {
+          "text": "{{ item['data']['счёт'] }}",
+          "hotkey": "tab"
+        },
+        "position": {
+          "x": 1690,
+          "y": 210
+        }
+      },
+      {
+        "id": "bik",
+        "type": "vision.click_text",
+        "label": "Поле «БИК»",
+        "params": {
+          "text": "БИК",
+          "offset": "160,0"
+        },
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      },
+      {
+        "id": "t2",
+        "type": "vision.type",
+        "label": "Ввести БИК",
+        "params": {
+          "text": "{{ item['data']['бик'] }}",
+          "hotkey": "tab"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "sum",
+        "type": "vision.click_text",
+        "label": "Поле «Сумма»",
+        "params": {
+          "text": "Сумма",
+          "offset": "160,0"
+        },
+        "position": {
+          "x": 700,
+          "y": 210
+        }
+      },
+      {
+        "id": "t3",
+        "type": "vision.type",
+        "label": "Ввести сумму",
+        "params": {
+          "text": "{{ '%.2f' % item['data']['сумма'] }}",
+          "hotkey": "tab"
+        },
+        "position": {
+          "x": 370,
+          "y": 210
+        }
+      },
+      {
+        "id": "pur",
+        "type": "vision.type",
+        "label": "Назначение платежа",
+        "params": {
+          "text": "{{ item['data']['назначение'] }}"
+        },
+        "position": {
+          "x": 370,
+          "y": 380
+        }
+      },
+      {
+        "id": "save",
+        "type": "vision.type",
+        "label": "Сохранить (F2)",
+        "params": {
+          "hotkey": "f2"
+        },
+        "position": {
+          "x": 700,
+          "y": 380
+        }
+      },
+      {
+        "id": "w2",
+        "type": "vision.wait_text",
+        "label": "Документ сохранён",
+        "params": {
+          "text": "сохранен",
+          "timeout": 20
+        },
+        "position": {
+          "x": 1030,
+          "y": 380
+        }
+      },
+      {
+        "id": "shot",
+        "type": "vision.screenshot",
+        "label": "Скриншот",
+        "params": {
+          "name": "платёж_{{ item['id'] }}.png"
+        },
+        "position": {
+          "x": 1360,
+          "y": 380
+        }
+      },
+      {
+        "id": "done",
+        "type": "queue.complete",
+        "label": "Платёж введён",
+        "params": {
+          "item": "item"
+        },
+        "position": {
+          "x": 1690,
+          "y": 380
+        }
+      },
+      {
+        "id": "fail",
+        "type": "queue.fail",
+        "label": "Ошибка ввода",
+        "params": {
+          "item": "item",
+          "error": "{{ last_error }}"
+        },
+        "position": {
+          "x": 1030,
+          "y": 550
+        }
+      },
+      {
+        "id": "esc",
+        "type": "vision.type",
+        "label": "Закрыть форму",
+        "params": {
+          "hotkey": "esc"
+        },
+        "position": {
+          "x": 1360,
+          "y": 550
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 210
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "act"
+      },
+      {
+        "id": "e1",
+        "source": "act",
+        "sourceHandle": "out",
+        "target": "next"
+      },
+      {
+        "id": "e2",
+        "source": "next",
+        "sourceHandle": "item",
+        "target": "new"
+      },
+      {
+        "id": "e3",
+        "source": "next",
+        "sourceHandle": "empty",
+        "target": "end"
+      },
+      {
+        "id": "e4",
+        "source": "new",
+        "sourceHandle": "out",
+        "target": "w1"
+      },
+      {
+        "id": "e5",
+        "source": "w1",
+        "sourceHandle": "out",
+        "target": "acc"
+      },
+      {
+        "id": "e6",
+        "source": "acc",
+        "sourceHandle": "out",
+        "target": "t1"
+      },
+      {
+        "id": "e7",
+        "source": "t1",
+        "sourceHandle": "out",
+        "target": "bik"
+      },
+      {
+        "id": "e8",
+        "source": "bik",
+        "sourceHandle": "out",
+        "target": "t2"
+      },
+      {
+        "id": "e9",
+        "source": "t2",
+        "sourceHandle": "out",
+        "target": "sum"
+      },
+      {
+        "id": "e10",
+        "source": "sum",
+        "sourceHandle": "out",
+        "target": "t3"
+      },
+      {
+        "id": "e11",
+        "source": "t3",
+        "sourceHandle": "out",
+        "target": "pur"
+      },
+      {
+        "id": "e12",
+        "source": "pur",
+        "sourceHandle": "out",
+        "target": "save"
+      },
+      {
+        "id": "e13",
+        "source": "save",
+        "sourceHandle": "out",
+        "target": "w2"
+      },
+      {
+        "id": "e14",
+        "source": "w2",
+        "sourceHandle": "out",
+        "target": "shot"
+      },
+      {
+        "id": "e15",
+        "source": "shot",
+        "sourceHandle": "out",
+        "target": "done"
+      },
+      {
+        "id": "e16",
+        "source": "w2",
+        "sourceHandle": "error",
+        "target": "fail"
+      },
+      {
+        "id": "e17",
+        "source": "new",
+        "sourceHandle": "error",
+        "target": "fail"
+      },
+      {
+        "id": "e18",
+        "source": "w1",
+        "sourceHandle": "not_found",
+        "target": "fail"
+      },
+      {
+        "id": "e19",
+        "source": "fail",
+        "sourceHandle": "out",
+        "target": "esc"
+      },
+      {
+        "id": "e20",
+        "source": "esc",
+        "sourceHandle": "out",
+        "target": "next"
+      },
+      {
+        "id": "e21",
+        "source": "done",
+        "sourceHandle": "out",
+        "target": "next"
+      }
+    ]
+  }
+}

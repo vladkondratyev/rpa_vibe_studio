@@ -1,0 +1,165 @@
+{
+  "name": "Счета поставщиков: OCR → 1С",
+  "category": "Банк",
+  "description": "Распознаёт счета на оплату из папки сканов по шаблону «Счёт на оплату», проверяет ИНН и БИК и создаёт документ «Счёт поставщика» в 1С через OData. Сомнительные — на проверку.",
+  "minutes_saved": 10,
+  "tags": [
+    "OCR",
+    "1С",
+    "АХО"
+  ],
+  "requires": [
+    "Tesseract"
+  ],
+  "definition": {
+    "variables": [
+      {
+        "name": "папка",
+        "default": "D:\\Сканы\\счета"
+      },
+      {
+        "name": "odata_1c",
+        "default": "http://1c-srv/buh/odata/standard.odata"
+      }
+    ],
+    "outputs": [],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "ls",
+        "type": "files.list",
+        "label": "Сканы счетов",
+        "params": {
+          "folder": "{{ папка }}",
+          "pattern": "*.*",
+          "result": "сканы"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "loop",
+        "type": "core.for_each",
+        "label": "По каждому",
+        "params": {
+          "collection": "сканы",
+          "item": "скан"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "ocr",
+        "type": "ocr.extract",
+        "label": "Счёт на оплату",
+        "params": {
+          "file": "{{ скан }}",
+          "template": "invoice",
+          "engine": "tesseract",
+          "ai_fallback": false,
+          "result": "счёт"
+        },
+        "position": {
+          "x": 700,
+          "y": 210
+        }
+      },
+      {
+        "id": "one",
+        "type": "onec.create",
+        "label": "Документ в 1С",
+        "params": {
+          "base_url": "{{ odata_1c }}",
+          "username": "robot",
+          "password": "onec_password",
+          "entity": "Document_СчетНаОплатуПоставщика",
+          "data": "{{ {'НомерВходящегоДокумента': счёт['fields']['number'], 'СуммаДокумента': счёт['fields']['total'], 'Комментарий': 'RPA: ' + скан} }}"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "rev",
+        "type": "queue.add",
+        "label": "На проверку",
+        "params": {
+          "queue": "Проверка документов",
+          "data": "{{ {'файл': скан, 'распознано': счёт['fields'], 'нет': счёт['missing']} }}",
+          "reference": "{{ скан }}"
+        },
+        "position": {
+          "x": 1030,
+          "y": 380
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "ls"
+      },
+      {
+        "id": "e1",
+        "source": "ls",
+        "sourceHandle": "out",
+        "target": "loop"
+      },
+      {
+        "id": "e2",
+        "source": "loop",
+        "sourceHandle": "body",
+        "target": "ocr"
+      },
+      {
+        "id": "e3",
+        "source": "ocr",
+        "sourceHandle": "ok",
+        "target": "one"
+      },
+      {
+        "id": "e4",
+        "source": "ocr",
+        "sourceHandle": "review",
+        "target": "rev"
+      },
+      {
+        "id": "e5",
+        "source": "one",
+        "sourceHandle": "error",
+        "target": "rev"
+      },
+      {
+        "id": "e6",
+        "source": "loop",
+        "sourceHandle": "done",
+        "target": "end"
+      }
+    ]
+  }
+}

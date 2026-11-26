@@ -1,0 +1,165 @@
+{
+  "name": "Решения ФНС о приостановлении операций",
+  "category": "Банк",
+  "description": "Читает входящие решения и запросы ФНС/ФССП (XML во вложениях), извлекает ИНН, номер и дату решения и ставит в очередь на исполнение с наивысшим приоритетом и SLA.",
+  "minutes_saved": 25,
+  "tags": [
+    "ФНС",
+    "311-П",
+    "очереди"
+  ],
+  "requires": [],
+  "definition": {
+    "variables": [],
+    "outputs": [],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "mail",
+        "type": "email.read",
+        "label": "Входящие от ФНС",
+        "params": {
+          "host": "imap.bank.local",
+          "port": 993,
+          "username": "fns@bank.ru",
+          "password": "imap_password",
+          "criteria": "UNSEEN FROM \"nalog\"",
+          "attachments_dir": "D:\\ФНС\\входящие",
+          "move_to": "Обработано",
+          "result": "письма"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "files",
+        "type": "core.python",
+        "label": "XML-вложения",
+        "params": {
+          "code": "файлы = [a['path'] for m in письма for a in m['attachments'] if a['name'].lower().endswith('.xml')]"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "loop",
+        "type": "core.for_each",
+        "label": "По каждому файлу",
+        "params": {
+          "collection": "файлы",
+          "item": "файл"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "xml",
+        "type": "data.parse_xml",
+        "label": "Разобрать XML",
+        "params": {
+          "source": "{{ файл }}",
+          "result": "док"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "map",
+        "type": "core.python",
+        "label": "Ключевые реквизиты",
+        "params": {
+          "code": "import re\nтекст = json.dumps(док, ensure_ascii=False)\ndef найти(шаблон):\n    m = re.search(шаблон, текст)\n    return m.group(1) if m else None\nрешение = {'файл': файл, 'ИНН': найти(r'\"@ИННЮЛ\": \"(\\d{10})\"') or найти(r'\"@ИННФЛ\": \"(\\d{12})\"'),\n           'номер': найти(r'\"@НомРеш\\w*\": \"([^\"]+)\"'), 'дата': найти(r'\"@ДатаРеш\\w*\": \"([^\"]+)\"')}"
+        },
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      },
+      {
+        "id": "q",
+        "type": "queue.add",
+        "label": "В очередь исполнения",
+        "params": {
+          "queue": "Решения ФНС",
+          "data": "{{ решение }}",
+          "reference": "{{ решение['номер'] }}",
+          "priority": 100
+        },
+        "position": {
+          "x": 1690,
+          "y": 210
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "mail"
+      },
+      {
+        "id": "e1",
+        "source": "mail",
+        "sourceHandle": "out",
+        "target": "files"
+      },
+      {
+        "id": "e2",
+        "source": "files",
+        "sourceHandle": "out",
+        "target": "loop"
+      },
+      {
+        "id": "e3",
+        "source": "loop",
+        "sourceHandle": "body",
+        "target": "xml"
+      },
+      {
+        "id": "e4",
+        "source": "xml",
+        "sourceHandle": "out",
+        "target": "map"
+      },
+      {
+        "id": "e5",
+        "source": "map",
+        "sourceHandle": "out",
+        "target": "q"
+      },
+      {
+        "id": "e6",
+        "source": "loop",
+        "sourceHandle": "done",
+        "target": "end"
+      }
+    ]
+  }
+}

@@ -1,0 +1,184 @@
+{
+  "name": "Открытие счёта: распознавание паспорта",
+  "category": "Банк",
+  "description": "Забирает сканы паспортов из почтового ящика отделений, распознаёт поля по шаблону «Паспорт РФ» (с проверкой MRZ), проверяет ИНН и создаёт анкету клиента через API. Сомнительные случаи — в очередь ручной проверки.",
+  "minutes_saved": 12,
+  "tags": [
+    "OCR",
+    "паспорт",
+    "онбординг",
+    "очереди"
+  ],
+  "requires": [
+    "Tesseract или Yandex Vision"
+  ],
+  "definition": {
+    "variables": [
+      {
+        "name": "crm",
+        "default": "https://crm.bank.local"
+      }
+    ],
+    "outputs": [],
+    "nodes": [
+      {
+        "id": "start",
+        "type": "core.start",
+        "params": {},
+        "position": {
+          "x": 40,
+          "y": 40
+        }
+      },
+      {
+        "id": "mail",
+        "type": "email.read",
+        "label": "Письма с паспортами",
+        "params": {
+          "host": "imap.yandex.ru",
+          "username": "onboarding@bank.ru",
+          "password": "imap_password",
+          "criteria": "UNSEEN SUBJECT \"паспорт\"",
+          "attachments_dir": "D:\\Онбординг\\входящие",
+          "result": "письма"
+        },
+        "position": {
+          "x": 370,
+          "y": 40
+        }
+      },
+      {
+        "id": "files",
+        "type": "core.python",
+        "label": "Список вложений",
+        "params": {
+          "code": "сканы = [a['path'] for m in письма for a in m['attachments'] if a['name'].lower().endswith(('.jpg', '.jpeg', '.png', '.pdf'))]"
+        },
+        "position": {
+          "x": 700,
+          "y": 40
+        }
+      },
+      {
+        "id": "loop",
+        "type": "core.for_each",
+        "label": "По каждому скану",
+        "params": {
+          "collection": "сканы",
+          "item": "скан"
+        },
+        "position": {
+          "x": 1030,
+          "y": 40
+        }
+      },
+      {
+        "id": "ocr",
+        "type": "ocr.extract",
+        "label": "Паспорт РФ",
+        "params": {
+          "file": "{{ скан }}",
+          "template": "passport_rf",
+          "engine": "yandex",
+          "yandex": "yandex",
+          "result": "паспорт"
+        },
+        "position": {
+          "x": 1030,
+          "y": 210
+        }
+      },
+      {
+        "id": "api",
+        "type": "http.request",
+        "label": "Создать анкету",
+        "params": {
+          "method": "POST",
+          "url": "{{ crm }}/api/clients",
+          "headers": "{\"Authorization\": \"Bearer {{ secret('crm_token') }}\"}",
+          "body_type": "json",
+          "body": "{{ паспорт['fields'] }}",
+          "result": "анкета"
+        },
+        "position": {
+          "x": 1360,
+          "y": 210
+        }
+      },
+      {
+        "id": "review",
+        "type": "queue.add",
+        "label": "На ручную проверку",
+        "params": {
+          "queue": "Проверка документов",
+          "data": "{{ {'файл': скан, 'распознано': паспорт['fields'], 'нет': паспорт['missing'], 'ошибки': паспорт['errors']} }}",
+          "reference": "{{ скан }}"
+        },
+        "position": {
+          "x": 1360,
+          "y": 380
+        }
+      },
+      {
+        "id": "end",
+        "type": "core.end",
+        "label": "Готово",
+        "params": {},
+        "position": {
+          "x": 1360,
+          "y": 40
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "e0",
+        "source": "start",
+        "sourceHandle": "out",
+        "target": "mail"
+      },
+      {
+        "id": "e1",
+        "source": "mail",
+        "sourceHandle": "out",
+        "target": "files"
+      },
+      {
+        "id": "e2",
+        "source": "files",
+        "sourceHandle": "out",
+        "target": "loop"
+      },
+      {
+        "id": "e3",
+        "source": "loop",
+        "sourceHandle": "body",
+        "target": "ocr"
+      },
+      {
+        "id": "e4",
+        "source": "ocr",
+        "sourceHandle": "ok",
+        "target": "api"
+      },
+      {
+        "id": "e5",
+        "source": "ocr",
+        "sourceHandle": "review",
+        "target": "review"
+      },
+      {
+        "id": "e6",
+        "source": "api",
+        "sourceHandle": "error",
+        "target": "review"
+      },
+      {
+        "id": "e7",
+        "source": "loop",
+        "sourceHandle": "done",
+        "target": "end"
+      }
+    ]
+  }
+}
